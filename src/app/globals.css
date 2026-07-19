@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/*  Habibi — design tokens                                            */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  /* Surfaces */
+  --color-bg: #f5f2e9;
+  --color-bg2: #ece7da;
+  --color-surface: #fcfaf5;
+  --color-white: #ffffff;
+
+  /* Ink */
+  --color-ink: #10110f;
+  --color-charcoal: #151612;
+  --color-dark: #0b0c09;
+  --color-muted: #6d6a61;
+
+  /* Accents */
+  --color-lime: #c8ff18;
+  --color-lime-soft: #ebffb0;
+
+  /* Naturals */
+  --color-sand: #d8cebb;
+  --color-stone: #b3a995;
+
+  /* Lines */
+  --color-line: rgba(16, 17, 15, 0.1);
+  --color-line-strong: rgba(16, 17, 15, 0.18);
+
+  /* Fonts (wired from next/font in layout.tsx) */
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+
+  /* Radius scale */
+  --radius-sm: 0.625rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2rem;
+  --radius-2xl: 2.5rem;
+
+  /* Shadows — soft, premium, low-spread */
+  --shadow-card: 0 1px 2px rgba(16, 17, 15, 0.04),
+    0 12px 32px -12px rgba(16, 17, 15, 0.14);
+  --shadow-float: 0 2px 4px rgba(16, 17, 15, 0.05),
+    0 24px 56px -20px rgba(16, 17, 15, 0.22);
+  --shadow-panel: 0 30px 80px -40px rgba(16, 17, 15, 0.55);
+
+  /* Easing */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --breakpoint-xs: 26rem;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Base                                                              */
+/* ------------------------------------------------------------------ */
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* Editorial serif defaults */
+.font-serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+  font-weight: 400;
+}
+
+/* Selection */
+::selection {
+  background: var(--color-lime);
+  color: var(--color-ink);
+}
+
+/* Focus visibility — accessible, on-brand */
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.on-dark :focus-visible,
+.focus-lime:focus-visible {
+  outline-color: var(--color-lime);
+}
+
+/* Utilities ------------------------------------------------------- */
+
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-pretty {
+  text-wrap: pretty;
+}
+
+/* Thin scrollbar for horizontal snap rails */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Animated nav underline */
+.nav-underline {
+  position: relative;
+}
+.nav-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 1px;
+  width: 100%;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s var(--ease-out-soft);
+}
+.nav-underline:hover::after,
+.nav-underline:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* Mashrabiya-inspired texture (very understated) */
+.mashrabiya {
+  background-image: radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.14) 1.1px,
+      transparent 1.6px
+    ),
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.08) 1.1px,
+      transparent 1.6px
+    );
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+}
+
+.mashrabiya-ink {
+  background-image: radial-gradient(
+      circle at center,
+      rgba(16, 17, 15, 0.05) 1.1px,
+      transparent 1.6px
+    ),
+    radial-gradient(
+      circle at center,
+      rgba(16, 17, 15, 0.03) 1.1px,
+      transparent 1.6px
+    );
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+}
+
+/* Fine architectural blueprint grid */
+.blueprint {
+  background-image: linear-gradient(
+      to right,
+      rgba(16, 17, 15, 0.04) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(16, 17, 15, 0.04) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
+.blueprint-dark {
+  background-image: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.05) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 46px 46px;
+}
+
+.hairline {
+  height: 1px;
+  background: var(--color-line-strong);
+}
+
+/* Soft radial glow for dark sections */
+.lime-glow {
+  background: radial-gradient(
+    60% 60% at 50% 0%,
+    rgba(199, 255, 24, 0.16) 0%,
+    rgba(199, 255, 24, 0) 70%
+  );
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+}
+.pulse-dot {
+  animation: pulse-dot 2.4s var(--ease-out-soft) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot {
+    animation: none;
+  }
+}

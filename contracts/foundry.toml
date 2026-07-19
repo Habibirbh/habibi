@@ -1,0 +1,28 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test"
+script = "script"
+libs = ["/Users/rajatsingh/Desktop/HABIBI ESTATE/node_modules", "lib"]
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 10_000
+evm_version = "cancun"
+verbosity = 2
+fs_permissions = [
+  { access = "read-write", path = "./deployments" },
+  { access = "read", path = "./config" },
+]
+
+remappings = [
+  "@openzeppelin/contracts/=../node_modules/@openzeppelin/contracts/",
+  "forge-std/=lib/forge-std/src/",
+]
+
+[fuzz]
+runs = 512
+
+[invariant]
+runs = 64
+depth = 64
+fail_on_revert = false

@@ -1,0 +1,17 @@
+{
+  "_comment": "STRUCTURAL EXAMPLE ONLY. The zero treasury and placeholder URI make this file fail validation on every chain, and 'example' in the filename is rejected on mainnet. Copy to properties.json and fill with real, legally reviewed values.",
+  "count": 1,
+  "properties": [
+    {
+      "slug": "REPLACE-with-real-property-slug",
+      "fundingTargetWei": "38000000000000000000",
+      "minContributionWei": "10000000000000000",
+      "maxPerWalletWei": "0",
+      "weiPerUnit": "10000000000000000",
+      "treasury": "0x0000000000000000000000000000000000000000",
+      "metadataURI": "ipfs://REPLACE_WITH_REAL_METADATA_CID",
+      "termsHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "open": false
+    }
+  ]
+}
