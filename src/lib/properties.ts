@@ -35,6 +35,22 @@ export interface Property {
 
 export const properties: Property[] = [
   {
+    id: "palmiera-2-oasis",
+    name: "Palmiera 2 — The Oasis",
+    location: "The Oasis, Dubai",
+    emirate: "Dubai",
+    type: "Lagoon-facing villa · proposed acquisition",
+    category: "Villas",
+    status: "Preview",
+    value: "Proposed acquisition",
+    minimum: "Conditional",
+    incomeProfile: "Conditional pre-acquisition campaign",
+    blurb:
+      "A proposed acquisition of a lagoon-facing villa in The Oasis, Dubai. Habibi raises conditional commitments toward a potential purchase — the property is not yet acquired, and contributions are escrowed and refundable under the stated conditions.",
+    image: "palm",
+    featured: true,
+  },
+  {
     id: "marina-residences",
     name: "Marina Residences",
     location: "Dubai Marina, Dubai",
@@ -48,7 +64,6 @@ export const properties: Property[] = [
     blurb:
       "A contemporary waterfront residence framed by the marina — presented with structured documentation, ownership terms, and a clear rental income profile.",
     image: "marina",
-    featured: true,
   },
   {
     id: "yas-waterfront",

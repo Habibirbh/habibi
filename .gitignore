@@ -58,3 +58,7 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 contracts/lib/
+
+# Third-party source material dropped in for reference — NOT licensed for
+# publication (e.g. developer marketing renders). Never commit/publish.
+Palmiera 2/

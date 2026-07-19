@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { MapPin, Bookmark, ArrowUpRight } from "lucide-react";
 import { Photo } from "@/components/ui/Photo";
 import { media } from "@/lib/media";
 import type { Property } from "@/lib/properties";
 import { useSite } from "./SiteProvider";
-import { useHabibi } from "@/components/web3/Web3Provider";
 import { usePools } from "@/lib/web3/hooks";
 import { eth, bpsToPercent } from "@/lib/web3/format";
 import { cn } from "@/lib/cn";
@@ -72,7 +72,6 @@ function PoolProgress({ poolId, dark = false }: { poolId: string; dark?: boolean
 /* ---------------- Featured (large) ---------------- */
 
 export function FeaturedProperty({ property }: { property: Property }) {
-  const { openPurchase } = useHabibi();
   return (
     <article className="group flex h-full flex-col">
       <div className="relative overflow-hidden rounded-[1.75rem] shadow-card">
@@ -109,17 +108,16 @@ export function FeaturedProperty({ property }: { property: Property }) {
             <PoolProgress poolId={property.id} />
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => openPurchase(property.id)}
+        <Link
+          href={`/properties/${property.id}`}
           className="focus-lime group/btn inline-flex items-center gap-2 self-start rounded-full bg-ink px-5 py-2.5 text-[0.88rem] font-medium text-surface transition-colors duration-300 hover:bg-lime hover:text-ink sm:self-end"
         >
-          Participate
+          View opportunity
           <ArrowUpRight
             className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5"
             strokeWidth={2}
           />
-        </button>
+        </Link>
       </div>
     </article>
   );
@@ -144,7 +142,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 /* ---------------- Secondary (compact) ---------------- */
 
 export function SecondaryPropertyCard({ property }: { property: Property }) {
-  const { openPurchase } = useHabibi();
   return (
     <div className="group rounded-2xl border border-line bg-surface p-3 transition-colors duration-300 hover:border-line-strong">
       <div className="flex items-stretch gap-4">
@@ -170,13 +167,12 @@ export function SecondaryPropertyCard({ property }: { property: Property }) {
         <div className="flex-1">
           <PoolProgress poolId={property.id} />
         </div>
-        <button
-          type="button"
-          onClick={() => openPurchase(property.id)}
+        <Link
+          href={`/properties/${property.id}`}
           className="focus-lime shrink-0 self-end rounded-full border border-ink px-4 py-2 text-[0.8rem] font-medium text-ink transition-colors hover:bg-ink hover:text-surface"
         >
-          Participate
-        </button>
+          View
+        </Link>
       </div>
     </div>
   );
