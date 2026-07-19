@@ -2280,6 +2280,10 @@ export const habibiCampaignsAbi = [
 
 /** Deployed addresses per chain id (from contracts/deployments/*.json). */
 export const habibiCampaignsDeployments: Record<number, { address: `0x${string}`; deployBlock: number }> = {
+  "4663": {
+    "address": "0x10BacAB80c7568D37EFa42aC552D7CED4dfF7161",
+    "deployBlock": 14215391
+  },
   "31337": {
     "address": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
     "deployBlock": 0

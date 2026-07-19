@@ -79,6 +79,23 @@ export interface CampaignMeta {
   acquisitionConditions: string[];
   riskFactors: string[];
   documents: { label: string; status: string }[];
+  /** Structured configuration (spec §10). Placeholders only where genuinely
+   *  missing. Contribution submission stays disabled until the critical onchain
+   *  values are valid (see criticalCampaignConfig). */
+  config: {
+    metadataURI: string;
+    termsURI: string;
+    termsHash: string;
+    riskDisclosureURI: string;
+    proposedSPVIdentifier: string;
+    complianceRequired: boolean;
+    refundPolicy: string;
+    excessFundsPolicy: string;
+    acquisitionAuthorizationPolicy: string;
+    /** Approved property images — empty until licensed media is supplied. */
+    approvedImages: string[];
+    imageRightsStatus: string;
+  };
 }
 
 /**
@@ -148,8 +165,46 @@ export const campaignRegistry: CampaignMeta[] = [
       { label: "Independent valuation", status: "Pending" },
       { label: "Title / SPV documentation", status: "Pending" },
     ],
+    config: {
+      // Placeholders where genuinely missing — real values arrive with the
+      // approved offering. Onchain critical values (target/min/unit/timings)
+      // come from the deployed campaign and gate contributions.
+      metadataURI: "habibi://campaign/palmiera-2-oasis",
+      termsURI: "REPLACE_WITH_APPROVED_TERMS_URI",
+      termsHash: "REPLACE_WITH_APPROVED_TERMS_HASH",
+      riskDisclosureURI: "REPLACE_WITH_APPROVED_RISK_DISCLOSURE_URI",
+      proposedSPVIdentifier: "REPLACE_WITH_PROPOSED_SPV",
+      complianceRequired: true,
+      refundPolicy: "Pull-based full refund on failure/cancellation; pro-rata excess refund.",
+      excessFundsPolicy: "ProportionalRefund",
+      acquisitionAuthorizationPolicy: "Authorizer role + signed acquisition certificate (multisig).",
+      approvedImages: [],
+      imageRightsStatus: "Representative imagery — final property materials pending",
+    },
   },
 ];
+
+/**
+ * Whether the ONCHAIN critical config for a campaign is valid enough to accept
+ * contributions (spec §10). The offchain policy placeholders may still be
+ * pending; these are the values the escrow contract enforces.
+ */
+export function criticalCampaignConfig(campaign: {
+  fundingTargetWei: bigint;
+  minContributionWei: bigint;
+  weiPerUnit: bigint;
+  closingTime: bigint;
+  state: CampaignState;
+}): { valid: boolean; reason?: string } {
+  if (campaign.fundingTargetWei <= 0n) return { valid: false, reason: "Funding target not set." };
+  if (campaign.weiPerUnit <= 0n) return { valid: false, reason: "Unit conversion not set." };
+  if (campaign.minContributionWei <= 0n) return { valid: false, reason: "Minimum contribution not set." };
+  if (campaign.closingTime <= 0n) return { valid: false, reason: "Funding deadline not set." };
+  if (campaign.state !== CampaignState.FundingOpen) {
+    return { valid: false, reason: `Campaign is ${campaignStateLabel[campaign.state]}.` };
+  }
+  return { valid: true };
+}
 
 export function campaignBySlug(slug: string): CampaignMeta | undefined {
   return campaignRegistry.find((c) => c.slug === slug);

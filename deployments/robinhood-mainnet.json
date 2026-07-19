@@ -1,0 +1,44 @@
+{
+  "network": "Robinhood Chain",
+  "chainId": 4663,
+  "explorer": "https://robinhoodchain.blockscout.com",
+  "posture": "preview-mode: protocol + app live, campaigns closed, contributions disabled at contract level",
+  "contracts": {
+    "HabibiCampaigns": {
+      "address": "0x10BacAB80c7568D37EFa42aC552D7CED4dfF7161",
+      "explorer": "https://robinhoodchain.blockscout.com/address/0x10BacAB80c7568D37EFa42aC552D7CED4dfF7161",
+      "deployBlock": 14215391,
+      "verified": true,
+      "constructorArg": "0x0F587C8CB459985f308B9B43200367cdF19e19Eb",
+      "compiler": { "solc": "0.8.24", "optimizer": true, "runs": 200, "evmVersion": "cancun" },
+      "responsibilities": [
+        "campaign registry",
+        "per-campaign escrow accounting",
+        "ERC-1155 participation units (transfer-restricted)",
+        "EIP-712 eligibility verification",
+        "role/access control",
+        "pause",
+        "pull refunds",
+        "gated acquisition finalization"
+      ]
+    }
+  },
+  "roles": {
+    "deployer": {
+      "address": "0x0F587C8CB459985f308B9B43200367cdF19e19Eb",
+      "afterDeploy": "all roles revoked"
+    },
+    "admin": {
+      "address": "0x92dd597c577490425A01216c2b6980c21e31cb61",
+      "holds": ["DEFAULT_ADMIN_ROLE", "CAMPAIGN_MANAGER_ROLE", "PAUSER_ROLE", "ELIGIBILITY_MANAGER_ROLE", "ACQUISITION_AUTHORIZER_ROLE"]
+    },
+    "eligibilitySigner": {
+      "address": "0xc8151bFc36aD674D5AE373721185c6Cbb884eF2C"
+    }
+  },
+  "initialState": {
+    "campaigns": 0,
+    "contributionsPossible": false,
+    "note": "getCampaign(id) reverts CampaignNotFound; contribute() reverts for every id until a campaign is created AND opened by the admin multisig"
+  }
+}

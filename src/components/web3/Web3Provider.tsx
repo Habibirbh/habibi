@@ -13,7 +13,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { wagmiConfig, purchasesEnabled } from "@/lib/web3/config";
 import { targetChain } from "@/lib/web3/chains";
 import { ConnectWalletModal } from "./ConnectWalletModal";
-import { PurchaseModal } from "./PurchaseModal";
 import { DevWalletShim } from "./DevWalletShim";
 
 const queryClient = new QueryClient({
@@ -32,7 +31,6 @@ interface HabibiWeb3ContextValue {
   purchases: { enabled: boolean; reason?: string };
   openConnect: () => void;
   disconnect: () => void;
-  openPurchase: (slug: string) => void;
 }
 
 const Ctx = createContext<HabibiWeb3ContextValue | null>(null);
@@ -46,7 +44,6 @@ export function useHabibi() {
 function InnerProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
-  const [purchaseSlug, setPurchaseSlug] = useState<string | null>(null);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -63,16 +60,6 @@ function InnerProvider({ children }: { children: ReactNode }) {
   const chainOk = isConnected && chainId === targetChain.id;
 
   const openConnect = useCallback(() => setConnectOpen(true), []);
-  const openPurchase = useCallback(
-    (slug: string) => {
-      if (!isConnected) {
-        setConnectOpen(true);
-        return;
-      }
-      setPurchaseSlug(slug);
-    },
-    [isConnected],
-  );
 
   const value: HabibiWeb3ContextValue = {
     mounted,
@@ -84,14 +71,12 @@ function InnerProvider({ children }: { children: ReactNode }) {
     purchases: purchasesEnabled(),
     openConnect,
     disconnect: () => disconnect(),
-    openPurchase,
   };
 
   return (
     <Ctx.Provider value={value}>
       {children}
       <ConnectWalletModal open={connectOpen} onClose={() => setConnectOpen(false)} />
-      <PurchaseModal slug={purchaseSlug} onClose={() => setPurchaseSlug(null)} />
     </Ctx.Provider>
   );
 }

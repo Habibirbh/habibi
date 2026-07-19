@@ -7,14 +7,16 @@ import { usePublicClient, useWriteContract, useWaitForTransactionReceipt, useAcc
 import { parseEther } from "viem";
 import { AlertTriangle, Check, ArrowRight, ExternalLink, MapPin, ShieldCheck, ArrowLeft } from "lucide-react";
 import { Photo } from "@/components/ui/Photo";
+import { Modal } from "@/components/ui/Modal";
 import { media } from "@/lib/media";
 import { useHabibi } from "./Web3Provider";
-import { useCampaign } from "@/lib/web3/useCampaigns";
+import { useCampaign, useContributionHistory } from "@/lib/web3/useCampaigns";
 import {
   campaignBySlug,
   campaignsAbi,
   campaignsContractAddress,
   contributionsEnabled,
+  criticalCampaignConfig,
   campaignStateLabel,
   CampaignState,
 } from "@/lib/web3/campaigns";
@@ -186,6 +188,9 @@ export function PropertyDetail({ slug }: { slug: string }) {
               </div>
             </section>
           )}
+
+          {/* onchain activity */}
+          {configured && <TxHistory campaignId={meta.campaignId} />}
         </div>
 
         {/* RIGHT — contribution panel */}
@@ -220,6 +225,8 @@ function ContributionPanel({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<Step>("form");
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [gasEstimate, setGasEstimate] = useState<bigint | null>(null);
 
   const { writeContractAsync, data: txHash } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash: txHash, chainId: targetChain.id, confirmations: 1, query: { enabled: !!txHash } });
@@ -229,6 +236,7 @@ function ContributionPanel({ slug }: { slug: string }) {
     if (receipt.data) {
       if (receipt.data.status === "success") {
         setStep("confirmed");
+        setReviewOpen(false);
         refetch();
       } else {
         setError("Transaction reverted onchain. Your funds were not committed.");
@@ -250,6 +258,7 @@ function ContributionPanel({ slug }: { slug: string }) {
   const units = campaign && amountWei && amountWei > 0n && campaign.weiPerUnit > 0n ? amountWei / campaign.weiPerUnit : 0n;
 
   const isOpen = campaign?.state === CampaignState.FundingOpen;
+  const critical = campaign ? criticalCampaignConfig(campaign) : { valid: false, reason: "Loading…" };
 
   const validation = useMemo(() => {
     if (!campaign || amountWei === null) return "Enter a valid ETH amount.";
@@ -264,10 +273,34 @@ function ContributionPanel({ slug }: { slug: string }) {
     return null;
   }, [campaign, amountWei, isOpen, balanceWei]);
 
-  async function submit() {
+  // Step 1: validate + estimate gas, then open the transaction review modal.
+  async function openReview() {
     if (!campaign || !contract || !client || !address || !meta || amountWei === null || amountWei === 0n) return;
     if (validation) return setError(validation);
-    if (!ack) return setError("Please acknowledge the conditional terms.");
+    setError(null);
+    setGasEstimate(null);
+    setReviewOpen(true);
+    try {
+      const gas = await client.estimateContractGas({
+        account: address,
+        address: contract,
+        abi: campaignsAbi,
+        functionName: "contribute",
+        args: [meta.campaignId, units, "0x"],
+        value: amountWei,
+      });
+      setGasEstimate(gas);
+    } catch {
+      /* estimate best-effort; confirmation still simulates */
+    }
+  }
+
+  // Step 2: from the review modal — simulate immediately before signing, sign,
+  // and wait for the confirmed receipt (§3). Never mark success early (§5).
+  async function confirm() {
+    if (!campaign || !contract || !client || !address || !meta || amountWei === null || amountWei === 0n) return;
+    if (validation) return setError(validation);
+    if (!ack) return setError("Please acknowledge the terms.");
     setBusy(true);
     setError(null);
     try {
@@ -289,6 +322,7 @@ function ContributionPanel({ slug }: { slug: string }) {
       if (e instanceof EligibilityError) setError(msg);
       else if (/User rejected|denied/i.test(msg)) setError("Transaction rejected in wallet.");
       else if (/ExceedsCapacity/.test(msg)) setError("Filled while submitting — try a smaller amount.");
+      else if (/insufficient funds/i.test(msg)) setError("Insufficient ETH for amount plus gas.");
       else setError(msg.split("\n")[0].slice(0, 160));
       setBusy(false);
     }
@@ -305,9 +339,15 @@ function ContributionPanel({ slug }: { slug: string }) {
           </span>
           <h3 className="mt-4 font-serif text-2xl text-ink">Contribution confirmed</h3>
           <p className="mt-2 text-[0.9rem] leading-relaxed text-muted">
-            Your contribution is held under the campaign&rsquo;s escrow conditions. Property acquisition and final
-            participation issuance remain pending.
+            Your contribution has been recorded onchain and remains subject to the campaign&rsquo;s escrow, funding and
+            acquisition conditions.
           </p>
+          <dl className="mx-auto mt-4 max-w-xs space-y-1.5 rounded-xl border border-line bg-bg2/40 p-4 text-left text-[0.82rem]">
+            <Field2 k="ETH contributed" v={eth(amountWei ?? 0n)} />
+            <Field2 k="Proposed units" v={units.toString()} />
+            {campaign && <Field2 k="Funding now" v={bpsToPercent(campaign.bps)} />}
+            {txHash && <Field2 k="Tx" v={shortAddress(txHash)} mono />}
+          </dl>
           {explorer && (
             <a href={explorer} target="_blank" rel="noopener noreferrer" className="focus-lime mt-4 inline-flex items-center gap-1.5 text-[0.85rem] text-ink">
               View on Blockscout <ExternalLink className="h-3.5 w-3.5" />
@@ -340,6 +380,11 @@ function ContributionPanel({ slug }: { slug: string }) {
             <div className="mt-5 flex items-start gap-2 rounded-xl border border-line bg-bg2/50 p-4 text-[0.85rem] text-muted">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#b07a1a]" />
               {gate.reason} Onchain contributions are disabled until this is configured.
+            </div>
+          ) : campaign && !critical.valid ? (
+            <div className="mt-5 flex items-start gap-2 rounded-xl border border-line bg-bg2/50 p-4 text-[0.85rem] text-muted">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#b07a1a]" />
+              {critical.reason} Contributions are disabled.
             </div>
           ) : !mounted || !connected ? (
             <button onClick={openConnect} className="focus-lime mt-5 w-full rounded-xl bg-ink py-3.5 text-sm font-medium text-surface hover:bg-lime hover:text-ink transition-colors">
@@ -377,21 +422,15 @@ function ContributionPanel({ slug }: { slug: string }) {
                 <Field2 k="Escrow" v={shortAddress(contract ?? "")} mono />
               </dl>
 
-              <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[0.78rem] leading-relaxed text-ink/75">
-                <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#10110f]" />
-                I understand this is a conditional contribution held in escrow, that the property is not yet acquired, that
-                I do not receive ownership now, and that refunds apply under the stated conditions.
-              </label>
-
               {error && <p className="mt-3 text-[0.82rem] text-[#b4442f]" role="alert">{error}</p>}
 
               <button
-                onClick={submit}
-                disabled={busy || !amountWei || amountWei === 0n || !!validation || !ack}
+                onClick={openReview}
+                disabled={!amountWei || amountWei === 0n || !!validation}
                 className="focus-lime mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3.5 text-sm font-medium text-surface transition-colors hover:bg-lime hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {busy ? "Simulating…" : "Review in wallet"}
-                {!busy && <ArrowRight className="h-4 w-4" strokeWidth={2} />}
+                Contribute to campaign
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
               </button>
               <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[0.68rem] text-muted">
                 <ShieldCheck className="h-3.5 w-3.5 text-lime" /> Funds held in escrow · refundable under stated conditions
@@ -400,6 +439,96 @@ function ContributionPanel({ slug }: { slug: string }) {
           )}
         </>
       )}
+
+      {/* Transaction review modal (§3) */}
+      {campaign && meta && (
+        <Modal open={reviewOpen} onClose={() => !busy && setReviewOpen(false)} labelledBy="review-title" className="max-w-md">
+          <div className="p-6">
+            <h3 id="review-title" className="font-serif text-xl text-surface">Review contribution</h3>
+            <p className="mt-1 text-[0.8rem] text-surface/55">Confirm the details before signing in your wallet.</p>
+            <dl className="mt-5 space-y-2 text-[0.85rem]">
+              <RField k="Campaign" v={meta.name} />
+              <RField k="Contribution" v={eth(amountWei ?? 0n)} />
+              <RField k="Proposed units" v={units.toString()} />
+              <RField k="Escrow" v={shortAddress(contract ?? "")} mono />
+              <RField k="Deadline" v={campaign.closingTime > 0n ? new Date(Number(campaign.closingTime) * 1000).toUTCString().slice(5, 22) + " UTC" : "—"} />
+              <RField k="Remaining capacity" v={eth(campaign.remainingWei)} />
+              <RField k="Estimated gas" v={gasEstimate !== null ? `${gasEstimate.toString()} units` : "estimating…"} />
+            </dl>
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[0.76rem] leading-relaxed text-surface/60">
+              <p className="font-medium text-surface/80">Refund conditions</p>
+              <ul className="mt-1.5 space-y-1">
+                {meta.refundConditions.map((r) => (
+                  <li key={r} className="flex gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-lime" />{r}</li>
+                ))}
+              </ul>
+            </div>
+            <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-[0.78rem] leading-relaxed text-surface/75">
+              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#c8ff18]" />
+              I understand this is a conditional contribution held in escrow, that the property is not yet acquired, that I
+              do not receive ownership now, and that refunds apply under the stated conditions.
+            </label>
+            {error && <p className="mt-3 text-[0.82rem] text-[#ff8a6b]" role="alert">{error}</p>}
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => !busy && setReviewOpen(false)} disabled={busy} className="focus-lime flex-1 rounded-xl border border-white/15 py-3 text-sm font-medium text-surface hover:bg-white/5 disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={confirm} disabled={busy || !ack} className="focus-lime flex-[1.4] rounded-xl bg-lime py-3 text-sm font-medium text-ink transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50">
+                {busy ? "Confirm in wallet…" : "Confirm & sign"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function TxHistory({ campaignId }: { campaignId: bigint }) {
+  const history = useContributionHistory({ campaignId });
+  return (
+    <section>
+      <h2 className="text-[0.95rem] font-semibold text-ink">Onchain activity</h2>
+      {history.isLoading ? (
+        <p className="mt-3 text-[0.85rem] text-muted">Reading contribution events…</p>
+      ) : !history.data || history.data.length === 0 ? (
+        <p className="mt-3 rounded-2xl border border-dashed border-line-strong p-5 text-[0.85rem] text-muted">
+          No contributions recorded onchain yet.
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
+          {history.data.slice(0, 12).map((t) => {
+            const url = explorerTxUrl(t.txHash);
+            return (
+              <li key={`${t.txHash}-${t.logIndex}`} className="flex items-center justify-between gap-3 px-5 py-3 text-[0.84rem]">
+                <span className="min-w-0">
+                  <span className="block text-ink/80">{eth(t.amountWei)}</span>
+                  <span className="block truncate font-mono text-[0.7rem] text-muted">
+                    {shortAddress(t.contributor)} · block {t.blockNumber.toString()}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-3">
+                  <span className="text-muted">{t.proposedUnits.toString()} units</span>
+                  {url && (
+                    <a href={url} target="_blank" rel="noopener noreferrer" aria-label="Transaction on Blockscout" className="focus-lime text-muted hover:text-ink">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function RField({ k, v, mono = false }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <dt className="text-surface/50">{k}</dt>
+      <dd className={mono ? "font-mono text-[0.78rem] text-surface/85" : "text-right text-surface/85"}>{v}</dd>
     </div>
   );
 }

@@ -16,9 +16,9 @@ import Link from "next/link";
 import { Photo } from "@/components/ui/Photo";
 import { HabibiIcon } from "@/components/brand/Logo";
 import { media } from "@/lib/media";
-import { properties } from "@/lib/properties";
 import { useHabibi } from "@/components/web3/Web3Provider";
-import { usePools } from "@/lib/web3/hooks";
+import { useUserCampaigns } from "@/lib/web3/useCampaigns";
+import { campaignRegistry } from "@/lib/web3/campaigns";
 import { eth, shortAddress } from "@/lib/web3/format";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -33,28 +33,31 @@ const sidebar = [
 
 export function PortfolioProductReveal() {
   const reduce = useReducedMotion();
-  const { mounted, connected, address, balanceWei, openConnect, openPurchase } = useHabibi();
-  const { pools } = usePools();
+  const { mounted, connected, address, balanceWei, openConnect } = useHabibi();
+  const { positions } = useUserCampaigns();
 
   const live = mounted && connected && address;
-  const holdings = pools.filter((p) => p.userUnits > 0n);
-  const totalInvestedWei = holdings.reduce((s, p) => s + p.userContributedWei, 0n);
+  // A position the wallet participates in: conditional commitment (escrow) or
+  // issued participation units after acquisition.
+  const holdings = positions.filter((p) => p.userContributedWei > 0n || p.userUnits > 0n);
+  const totalCommittedWei = holdings.reduce((s, p) => s + p.userContributedWei, 0n);
+  const totalRefundableWei = holdings.reduce((s, p) => s + p.userRefundableWei, 0n);
   const totalUnits = holdings.reduce((s, p) => s + p.userUnits, 0n);
 
   const summary = [
-    { icon: Building2, label: "Property interests", value: live ? String(holdings.length) : "0" },
-    { icon: Wallet, label: "Contributed", value: live ? eth(totalInvestedWei) : "0 ETH" },
-    { icon: Coins, label: "Available distributions", value: "0 ETH" },
-    { icon: LayoutGrid, label: "Units held", value: live ? totalUnits.toString() : "0" },
+    { icon: Building2, label: "Campaigns joined", value: live ? String(holdings.length) : "0" },
+    { icon: Wallet, label: "Committed (escrow)", value: live ? eth(totalCommittedWei) : "0 ETH" },
+    { icon: Coins, label: "Refundable", value: live ? eth(totalRefundableWei) : "0 ETH" },
+    { icon: LayoutGrid, label: "Participation units", value: live ? totalUnits.toString() : "0" },
   ];
 
   const byEmirate = new Map<string, bigint>();
   for (const h of holdings) byEmirate.set(h.meta.emirate, (byEmirate.get(h.meta.emirate) ?? 0n) + h.userContributedWei);
   const emirates = ["Dubai", "Abu Dhabi", "Sharjah"].map((name) => ({
     name,
-    pct: totalInvestedWei > 0n ? Number(((byEmirate.get(name) ?? 0n) * 10_000n) / totalInvestedWei) / 100 : 0,
+    pct: totalCommittedWei > 0n ? Number(((byEmirate.get(name) ?? 0n) * 10_000n) / totalCommittedWei) / 100 : 0,
   }));
-  const totalInvested = totalInvestedWei;
+  const totalInvested = totalCommittedWei;
 
   const mod = (i: number) =>
     reduce
@@ -232,22 +235,21 @@ export function PortfolioProductReveal() {
                       <ChevronRight className="h-4 w-4 text-surface/40" />
                     </div>
                     <ul className="mt-3 space-y-2">
-                      {properties.slice(0, 3).map((p) => (
-                        <li key={p.id} className="flex items-center gap-3 rounded-lg border border-white/6 bg-white/[0.02] p-2">
+                      {campaignRegistry.slice(0, 3).map((c) => (
+                        <li key={c.slug} className="flex items-center gap-3 rounded-lg border border-white/6 bg-white/[0.02] p-2">
                           <div className="relative h-10 w-12 shrink-0 overflow-hidden rounded-md">
-                            <Photo asset={media[p.image]} sizes="60px" zoom={false} className="h-full w-full" />
+                            <Photo asset={media[c.image]} sizes="60px" zoom={false} className="h-full w-full" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-[0.82rem] text-surface/85">{p.name}</p>
-                            <p className="truncate text-[0.68rem] text-surface/40">{p.location}</p>
+                            <p className="truncate text-[0.82rem] text-surface/85">{c.name}</p>
+                            <p className="truncate text-[0.68rem] text-surface/40">{c.location}</p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => openPurchase(p.id)}
+                          <Link
+                            href={`/properties/${c.slug}`}
                             className="focus-lime shrink-0 rounded-full bg-lime px-3 py-1.5 text-[0.68rem] font-medium text-ink transition-transform hover:-translate-y-0.5"
                           >
-                            Participate
-                          </button>
+                            View campaign
+                          </Link>
                         </li>
                       ))}
                     </ul>

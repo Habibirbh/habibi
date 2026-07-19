@@ -43,8 +43,18 @@ const isUrl = (v) => /^https:\/\/.+/.test(v);
 const isLocalhost = (v) => /localhost|127\.0\.0\.1|0\.0\.0\.0|:8545/i.test(v || "");
 
 require_("NEXT_PUBLIC_ROBINHOOD_RPC_URL", isUrl);
-require_("NEXT_PUBLIC_PROPERTY_CONTRACT_ADDRESS", isNonZeroAddress);
-require_("NEXT_PUBLIC_COMPLIANCE_API_URL", isUrl);
+// The live functional path is the conditional pre-acquisition campaign/escrow
+// model (HabibiCampaigns). This is the contract the property page, portfolio,
+// and admin all read/write, so it is the one the production build must require.
+require_("NEXT_PUBLIC_CAMPAIGNS_CONTRACT_ADDRESS", isNonZeroAddress);
+// The compliance API is a CAMPAIGN-ACTIVATION requirement, not a protocol/app
+// DEPLOYMENT one: the site ships in preview mode with contributions closed, and
+// contributionsEnabled() fail-closes on this at runtime before any contribution
+// is possible. So it must NOT block the build. If set, it must still be a
+// well-formed, non-localhost URL (localhost is caught by the loop below).
+if (process.env.NEXT_PUBLIC_COMPLIANCE_API_URL && !isUrl(process.env.NEXT_PUBLIC_COMPLIANCE_API_URL)) {
+  problems.push(`NEXT_PUBLIC_COMPLIANCE_API_URL is malformed: "${process.env.NEXT_PUBLIC_COMPLIANCE_API_URL}"`);
+}
 require_("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID");
 require_("NEXT_PUBLIC_BLOCK_EXPLORER_URL", isUrl);
 
@@ -70,10 +80,18 @@ if (chainId && chainId !== "4663") {
   problems.push(`CHAIN_ID must be 4663 for production; got "${chainId}"`);
 }
 
-// Reject the known local/test contract address and demo-mode flags (spec §4/§5).
-if ((process.env.NEXT_PUBLIC_PROPERTY_CONTRACT_ADDRESS || "").toLowerCase() ===
-    "0x5fbdb2315678afecb367f032d93f642f64180aa3") {
-  problems.push("NEXT_PUBLIC_PROPERTY_CONTRACT_ADDRESS is the local anvil deployment address");
+// Reject known local/anvil contract addresses leaking into production (spec §4/§5).
+const ANVIL_ADDRESSES = new Set([
+  "0x5fbdb2315678afecb367f032d93f642f64180aa3", // old pools local deploy
+  "0x8a791620dd6260079bf849dc5567adc3f2fdc318", // campaigns local deploy
+]);
+for (const name of [
+  "NEXT_PUBLIC_CAMPAIGNS_CONTRACT_ADDRESS",
+  "NEXT_PUBLIC_PROPERTY_CONTRACT_ADDRESS",
+]) {
+  if (ANVIL_ADDRESSES.has((process.env[name] || "").toLowerCase())) {
+    problems.push(`${name} is a local anvil deployment address, not a mainnet deployment`);
+  }
 }
 if (/^(1|true|on)$/i.test(process.env.NEXT_PUBLIC_DEMO_MODE || "")) {
   problems.push("NEXT_PUBLIC_DEMO_MODE must not be enabled in production");
