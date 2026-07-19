@@ -42,7 +42,17 @@ const isNonZeroAddress = (v) => isAddress(v) && !/^0x0{40}$/.test(v);
 const isUrl = (v) => /^https:\/\/.+/.test(v);
 const isLocalhost = (v) => /localhost|127\.0\.0\.1|0\.0\.0\.0|:8545/i.test(v || "");
 
-require_("NEXT_PUBLIC_ROBINHOOD_RPC_URL", isUrl);
+// RPC endpoint. A dedicated endpoint is strongly preferred, but Robinhood Chain
+// (4663) may only expose the shared public endpoint. For a preview-mode launch
+// the operator can opt into the public RPC explicitly by setting
+// NEXT_PUBLIC_ACCEPT_PUBLIC_RPC=true — a deliberate, documented choice, never a
+// silent fallback. Without that opt-in the strict rule stands (see below).
+const ACCEPT_PUBLIC_RPC = /^(1|true|on)$/i.test(process.env.NEXT_PUBLIC_ACCEPT_PUBLIC_RPC || "");
+if (!ACCEPT_PUBLIC_RPC) {
+  require_("NEXT_PUBLIC_ROBINHOOD_RPC_URL", isUrl);
+} else if (process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL && !isUrl(process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL)) {
+  problems.push(`NEXT_PUBLIC_ROBINHOOD_RPC_URL is malformed: "${process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL}"`);
+}
 // The live functional path is the conditional pre-acquisition campaign/escrow
 // model (HabibiCampaigns). This is the contract the property page, portfolio,
 // and admin all read/write, so it is the one the production build must require.
@@ -55,12 +65,21 @@ require_("NEXT_PUBLIC_CAMPAIGNS_CONTRACT_ADDRESS", isNonZeroAddress);
 if (process.env.NEXT_PUBLIC_COMPLIANCE_API_URL && !isUrl(process.env.NEXT_PUBLIC_COMPLIANCE_API_URL)) {
   problems.push(`NEXT_PUBLIC_COMPLIANCE_API_URL is malformed: "${process.env.NEXT_PUBLIC_COMPLIANCE_API_URL}"`);
 }
-require_("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID");
+// WalletConnect is OPTIONAL: injected/extension wallets (MetaMask, Coinbase,
+// Rabby, …) work via EIP-6963 discovery without it. It only adds the WalletConnect
+// mobile-QR path. Warn if absent, but do not block the build.
+if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
+  console.warn("[check-env] note: NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID unset — WalletConnect mobile QR disabled; injected wallets still work.");
+}
 require_("NEXT_PUBLIC_BLOCK_EXPLORER_URL", isUrl);
 
-if (process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL === "https://rpc.mainnet.chain.robinhood.com") {
+if (
+  process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL === "https://rpc.mainnet.chain.robinhood.com" &&
+  !ACCEPT_PUBLIC_RPC
+) {
   problems.push(
-    "NEXT_PUBLIC_ROBINHOOD_RPC_URL is the public fallback — provision a production RPC endpoint",
+    "NEXT_PUBLIC_ROBINHOOD_RPC_URL is the public fallback — provision a dedicated endpoint, " +
+      "or set NEXT_PUBLIC_ACCEPT_PUBLIC_RPC=true to accept it for a preview-mode launch",
   );
 }
 
