@@ -84,13 +84,6 @@ export function Header() {
             >
               <XIcon className="h-4 w-4" />
             </a>
-            <Link
-              href="/#waitlist"
-              className="nav-underline focus-lime hidden rounded text-[0.9rem] font-medium text-ink md:inline-flex"
-            >
-              Join waitlist
-            </Link>
-
             <WalletControl />
 
             <button
@@ -358,13 +351,6 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
                 >
                   Connect wallet
                 </button>
-                <Link
-                  href="/#waitlist"
-                  onClick={onClose}
-                  className="focus-lime w-full rounded-full border border-line-strong px-5 py-3.5 text-center font-medium text-ink"
-                >
-                  Join waitlist
-                </Link>
               </>
             )}
           </div>
