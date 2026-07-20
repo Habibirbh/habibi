@@ -19,7 +19,7 @@ import { eth, bpsToPercent, shortAddress } from "@/lib/web3/format";
  */
 export function CampaignPortfolio() {
   const { mounted, connected, address, chainOk, openConnect, disconnect } = useHabibi();
-  const { positions, configured, isLoading } = useUserCampaigns();
+  const { positions, configured, isLoading, refetch } = useUserCampaigns();
 
   if (!mounted) {
     return <div className="mx-auto max-w-[82rem] px-5 py-24 sm:px-8"><div className="h-64 animate-pulse rounded-2xl bg-bg2/60" /></div>;
@@ -101,7 +101,7 @@ export function CampaignPortfolio() {
       ) : (
         <div className="mt-4 space-y-4">
           {mine.map((p) => (
-            <PositionCard key={p.meta.slug} p={p} chainOk={chainOk} />
+            <PositionCard key={p.meta.slug} p={p} chainOk={chainOk} refetch={refetch} />
           ))}
         </div>
       )}
@@ -120,7 +120,7 @@ function positionType(state: CampaignState): { label: string; tone: string } {
   return { label: "Conditional commitment", tone: "bg-ink/[0.06] text-ink/70" };
 }
 
-function PositionCard({ p, chainOk }: { p: OnchainCampaign; chainOk: boolean }) {
+function PositionCard({ p, chainOk, refetch }: { p: OnchainCampaign; chainOk: boolean; refetch: () => void }) {
   const { address } = useAccount();
   const contract = campaignsContractAddress();
   const client = usePublicClient({ chainId: targetChain.id });
@@ -131,11 +131,30 @@ function PositionCard({ p, chainOk }: { p: OnchainCampaign; chainOk: boolean }) 
 
   const pt = positionType(p.state);
   const proposedUnits = p.weiPerUnit > 0n ? p.userContributedWei / p.weiPerUnit : 0n;
-  const canRefund = p.state === CampaignState.Refunding && p.userRefundableWei > 0n;
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const canRefund = isDemo ? p.userRefundableWei > 0n : (p.state === CampaignState.Refunding && p.userRefundableWei > 0n);
   const canClaimUnits = (p.state === CampaignState.Acquired || p.state === CampaignState.InterestsIssued) && !p.userFinalClaimed && p.userContributedWei > 0n;
   const done = !!resultHash;
 
   async function act(fn: "claimRefund" | "claimUnitsAndExcess", kind: "refund" | "claim") {
+    if (isDemo) {
+      setBusy(kind);
+      setErr(null);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const mockHash = ("0x" + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")) as `0x${string}`;
+        setResultHash(mockHash);
+        if (fn === "claimRefund") {
+          localStorage.removeItem(`demo_contrib_${p.meta.slug}_${address}`);
+          refetch();
+        }
+      } catch {
+        setErr("Simulated action failed.");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
     if (!contract || !client || !address) return;
     setBusy(kind);
     setErr(null);

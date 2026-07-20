@@ -115,6 +115,7 @@ function AdminCampaignRow({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {roles.isManager && s === CampaignState.Draft && <Btn icon={<Play className="h-3.5 w-3.5" />} label="Schedule" busy={busy === `schedule-${id}`} onClick={() => run(`schedule-${id}`, "scheduleCampaign", [id, 0n, BigInt(Math.floor(Date.now() / 1000) + 86400 * 30)])} />}
           {roles.isManager && s === CampaignState.Scheduled && <Btn icon={<Play className="h-3.5 w-3.5" />} label="Open" busy={busy === `open-${id}`} onClick={() => run(`open-${id}`, "openCampaign", [id])} />}
           {roles.isPauser && s === CampaignState.FundingOpen && <Btn icon={<Pause className="h-3.5 w-3.5" />} label="Pause all" busy={busy === `pause-${id}`} onClick={() => run(`pause-${id}`, "pause", [])} />}
           {roles.isManager && s === CampaignState.FundingOpen && <Btn icon={<RefreshCw className="h-3.5 w-3.5" />} label="Close funding" busy={busy === `close-${id}`} onClick={() => run(`close-${id}`, "closeFunding", [id])} />}

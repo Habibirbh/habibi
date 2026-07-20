@@ -3,7 +3,7 @@
 import { useAccount, useBlockNumber, usePublicClient, useReadContracts } from "wagmi";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { parseAbiItem, type Abi } from "viem";
+import { parseAbiItem, type Abi, parseEther } from "viem";
 import { targetChain } from "./chains";
 import {
   campaignsAbi,
@@ -70,6 +70,7 @@ export function useCampaign(meta: CampaignMeta | undefined) {
   const { data: blockNumber } = useBlockNumber({ watch: true, chainId: targetChain.id, query: { refetchInterval: 12_000 } });
 
   const id = meta?.campaignId;
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
   type Call = {
     address: `0x${string}` | undefined;
@@ -79,7 +80,7 @@ export function useCampaign(meta: CampaignMeta | undefined) {
     args: readonly unknown[];
   };
   const calls: Call[] = [];
-  if (contract && id !== undefined) {
+  if (contract && id !== undefined && !isDemo) {
     const base = { address: contract, abi: campaignsAbi, chainId: targetChain.id } as const;
     calls.push({ ...base, functionName: "getCampaign", args: [id] });
     if (address) {
@@ -92,15 +93,64 @@ export function useCampaign(meta: CampaignMeta | undefined) {
 
   const reads = useReadContracts({
     contracts: calls,
-    query: { enabled: !!contract && id !== undefined },
+    query: { enabled: !!contract && id !== undefined && !isDemo },
   });
 
   useEffect(() => {
-    if (blockNumber !== undefined) reads.refetch();
-  }, [blockNumber, reads]);
+    if (blockNumber !== undefined && !isDemo) reads.refetch();
+  }, [blockNumber, reads, isDemo]);
 
-  const configured = !!contract;
+  const configured = !!contract || isDemo;
   let campaign: OnchainCampaign | null = null;
+
+  if (meta && isDemo) {
+    const target = parseEther("40");
+    const minThreshold = parseEther("24");
+    const minContribution = parseEther("0.05");
+    const weiPerUnit = parseEther("0.05");
+
+    let userCommitted = 0n;
+    if (typeof window !== "undefined" && address) {
+      const stored = localStorage.getItem(`demo_contrib_${meta.slug}_${address}`);
+      if (stored) {
+        try {
+          userCommitted = BigInt(stored);
+        } catch {}
+      }
+    }
+    const initialCommitted = parseEther("18.45");
+    const totalCommitted = initialCommitted + userCommitted;
+    const userUnits = userCommitted / weiPerUnit;
+
+    campaign = {
+      meta,
+      loaded: true,
+      state: CampaignState.FundingOpen,
+      fundingTargetWei: target,
+      minThresholdWei: minThreshold,
+      minContributionWei: minContribution,
+      maxPerWalletWei: 0n,
+      weiPerUnit,
+      totalCommittedWei: totalCommitted,
+      totalRefundedWei: 0n,
+      releasedAmountWei: 0n,
+      finalAcquisitionPriceWei: 0n,
+      participantCount: 14 + (userCommitted > 0n ? 1 : 0),
+      openingTime: 0n,
+      closingTime: 1800000000n, // Static pure future timestamp
+      feeBps: 0,
+      transfersEnabled: false,
+      remainingWei: target - totalCommitted,
+      bps: fundedBps(totalCommitted, target),
+      escrowWei: totalCommitted,
+      userContributedWei: userCommitted,
+      userRefundableWei: userCommitted, // Always allow simulated refunding of committed amount in demo mode
+      userUnits,
+      userFinalClaimed: false,
+    };
+    return { campaign, configured, isLoading: false, isError: false, refetch: () => {} };
+  }
+
   if (meta && reads.data) {
     const c = reads.data[0]?.result as CampaignTuple | undefined;
     if (c) {
@@ -148,9 +198,11 @@ export function useUserCampaigns() {
   const { address } = useAccount();
   const { data: blockNumber } = useBlockNumber({ watch: true, chainId: targetChain.id, query: { refetchInterval: 12_000 } });
 
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
   type Call = { address: `0x${string}`; abi: Abi; chainId: number; functionName: string; args: readonly unknown[] };
   const calls: Call[] = [];
-  if (contract) {
+  if (contract && !isDemo) {
     for (const meta of campaignRegistry) {
       const base = { address: contract, abi: campaignsAbi, chainId: targetChain.id } as const;
       calls.push({ ...base, functionName: "getCampaign", args: [meta.campaignId] });
@@ -163,10 +215,67 @@ export function useUserCampaigns() {
     }
   }
 
-  const reads = useReadContracts({ contracts: calls, query: { enabled: !!contract } });
+  const reads = useReadContracts({ contracts: calls, query: { enabled: !!contract && !isDemo } });
   useEffect(() => {
-    if (blockNumber !== undefined) reads.refetch();
-  }, [blockNumber, reads]);
+    if (blockNumber !== undefined && !isDemo) reads.refetch();
+  }, [blockNumber, reads, isDemo]);
+
+  if (isDemo) {
+    const target = parseEther("40");
+    const minThreshold = parseEther("24");
+    const minContribution = parseEther("0.05");
+    const weiPerUnit = parseEther("0.05");
+
+    const positions: OnchainCampaign[] = campaignRegistry.map((meta) => {
+      let userCommitted = 0n;
+      if (typeof window !== "undefined" && address) {
+        const stored = localStorage.getItem(`demo_contrib_${meta.slug}_${address}`);
+        if (stored) {
+          try {
+            userCommitted = BigInt(stored);
+          } catch {}
+        }
+      }
+      const initialCommitted = parseEther("18.45");
+      const totalCommitted = initialCommitted + userCommitted;
+      const userUnits = userCommitted / weiPerUnit;
+
+      return {
+        meta,
+        loaded: true,
+        state: CampaignState.FundingOpen,
+        fundingTargetWei: target,
+        minThresholdWei: minThreshold,
+        minContributionWei: minContribution,
+        maxPerWalletWei: 0n,
+        weiPerUnit,
+        totalCommittedWei: totalCommitted,
+        totalRefundedWei: 0n,
+        releasedAmountWei: 0n,
+        finalAcquisitionPriceWei: 0n,
+        participantCount: 14 + (userCommitted > 0n ? 1 : 0),
+        openingTime: 0n,
+        closingTime: 1800000000n, // Static pure future timestamp
+        feeBps: 0,
+        transfersEnabled: false,
+        remainingWei: target - totalCommitted,
+        bps: fundedBps(totalCommitted, target),
+        escrowWei: totalCommitted,
+        userContributedWei: userCommitted,
+        userRefundableWei: userCommitted, // Always allow simulated refunding of committed amount in demo mode
+        userUnits,
+        userFinalClaimed: false,
+      };
+    });
+
+    return {
+      positions,
+      configured: true,
+      isLoading: false,
+      isError: false,
+      refetch: () => {},
+    };
+  }
 
   const data = reads.data as ReadonlyArray<{ result?: unknown }> | undefined;
   const stride = address ? 5 : 1;

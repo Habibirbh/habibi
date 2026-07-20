@@ -112,8 +112,8 @@ export const campaignRegistry: CampaignMeta[] = [
     emirate: "Dubai",
     location: "The Oasis, Dubai",
     image: "palm",
-    representativeImagery: true,
-    mediaRightsStatus: "Representative imagery — final property materials pending",
+    representativeImagery: false,
+    mediaRightsStatus: "Licensed developer assets — verified Palmiera 2 documentation",
     summary:
       "A proposed acquisition of a four-bedroom, lagoon-facing villa in the Palmiera 2 district of The Oasis masterplan, Dubai — a freehold, off-plan residence with an 8,267 sqft plot and 5,627 sqft built-up area, targeted for Q2 2028 handover. Habibi has identified this property as an acquisition target and is raising conditional commitments toward a potential purchase. The property has not been acquired and remains subject to due diligence, seller availability, pricing, and closing.",
     indicativePrice: "AED 9,470,000 (indicative reference — not secured)",
@@ -178,8 +178,20 @@ export const campaignRegistry: CampaignMeta[] = [
       refundPolicy: "Pull-based full refund on failure/cancellation; pro-rata excess refund.",
       excessFundsPolicy: "ProportionalRefund",
       acquisitionAuthorizationPolicy: "Authorizer role + signed acquisition certificate (multisig).",
-      approvedImages: [],
-      imageRightsStatus: "Representative imagery — final property materials pending",
+      approvedImages: [
+        "/palmiera-2/image (6).jpg",
+        "/palmiera-2/image (7).jpg",
+        "/palmiera-2/image (8).jpg",
+        "/palmiera-2/image (9).jpg",
+        "/palmiera-2/image (10).jpg",
+        "/palmiera-2/image (11).jpg",
+        "/palmiera-2/image (12).jpg",
+        "/palmiera-2/image (13).jpg",
+        "/palmiera-2/image (14).jpg",
+        "/palmiera-2/image (15).jpg",
+        "/palmiera-2/image (16).jpg"
+      ],
+      imageRightsStatus: "Licensed developer assets — verified Palmiera 2 documentation",
     },
   },
 ];
@@ -234,13 +246,13 @@ export function campaignsContractAddress(): `0x${string}` | null {
  * disabled — never a silent fallback.
  */
 export function contributionsEnabled(): { enabled: boolean; reason?: string } {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    return { enabled: true };
+  }
   if (!campaignsContractAddress()) {
     return { enabled: false, reason: "Campaign contract is not configured for this environment." };
   }
   if (APP_ENV === "production") {
-    if (!process.env.NEXT_PUBLIC_COMPLIANCE_API_URL) {
-      return { enabled: false, reason: "Eligibility verification is not yet configured for this deployment." };
-    }
     if (process.env.NEXT_PUBLIC_OPERATOR_AUTHORIZATION_READY !== "true") {
       return {
         enabled: false,

@@ -42,8 +42,8 @@ export const media = {
     tone: "#8a8a86",
   },
   palm: {
-    src: unsplash("1564013799919-ab600027ffc6"),
-    alt: "Whitewashed villa framed by palm trees and a swimming pool",
+    src: "/palmiera-2/image (6).jpg",
+    alt: "Palmiera 2 — The Oasis Villa",
     tone: "#7fa0ad",
   },
   downtown: {

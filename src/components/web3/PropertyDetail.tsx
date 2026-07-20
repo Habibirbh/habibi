@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { usePublicClient, useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
 import { parseEther } from "viem";
-import { AlertTriangle, Check, ArrowRight, ExternalLink, MapPin, ShieldCheck, ArrowLeft } from "lucide-react";
+import { AlertTriangle, Check, ArrowRight, ExternalLink, MapPin, ShieldCheck, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { Photo } from "@/components/ui/Photo";
 import { Modal } from "@/components/ui/Modal";
 import { media } from "@/lib/media";
@@ -31,6 +31,7 @@ const CONDITIONAL_NOTICE =
 export function PropertyDetail({ slug }: { slug: string }) {
   const meta = campaignBySlug(slug);
   const { campaign, configured, isLoading } = useCampaign(meta);
+  const [activeImgIdx, setActiveImgIdx] = useState(0);
 
   if (!meta) {
     const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -61,12 +62,77 @@ export function PropertyDetail({ slug }: { slug: string }) {
       </Link>
 
       {/* Hero — representative imagery, clearly labelled */}
-      <div className="relative overflow-hidden rounded-[1.75rem] shadow-card">
-        <Photo asset={media[meta.image]} sizes="100vw" zoom={false} className="aspect-[16/8] w-full" overlay="bg-gradient-to-t from-ink/70 via-ink/10 to-transparent" />
-        <span className="absolute left-4 top-4 rounded-full bg-ink/70 px-3 py-1 text-[0.68rem] font-medium text-surface backdrop-blur">
+      <div className="relative overflow-hidden rounded-[1.75rem] shadow-card group">
+        <div className="aspect-[16/8] w-full relative">
+          {(() => {
+            const images = meta.config.approvedImages.length > 0
+              ? meta.config.approvedImages.map((src) => ({ src, alt: meta.name, tone: "#2b3138" }))
+              : [media[meta.image]];
+
+            const nextImage = (e: React.MouseEvent) => {
+              e.preventDefault();
+              setActiveImgIdx((prev) => (prev + 1) % images.length);
+            };
+            const prevImage = (e: React.MouseEvent) => {
+              e.preventDefault();
+              setActiveImgIdx((prev) => (prev - 1 + images.length) % images.length);
+            };
+
+            return (
+              <>
+                {images.map((img, idx) => (
+                  <motion.div
+                    key={img.src}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: idx === activeImgIdx ? 1 : 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="absolute inset-0"
+                    style={{ pointerEvents: idx === activeImgIdx ? "auto" : "none" }}
+                  >
+                    <Photo asset={img} sizes="100vw" zoom={false} className="h-full w-full" overlay="bg-gradient-to-t from-ink/70 via-ink/10 to-transparent" />
+                  </motion.div>
+                ))}
+
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={prevImage}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-surface/30 backdrop-blur-md border border-line/30 flex items-center justify-center text-surface hover:bg-surface/50 hover:text-ink transition-all duration-300 opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
+                      aria-label="Previous image"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={nextImage}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-surface/30 backdrop-blur-md border border-line/30 flex items-center justify-center text-surface hover:bg-surface/50 hover:text-ink transition-all duration-300 opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
+                      aria-label="Next image"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+
+                    <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                      {images.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setActiveImgIdx(idx);
+                          }}
+                          className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${idx === activeImgIdx ? "w-6 bg-lime" : "w-2 bg-surface/50"}`}
+                          aria-label={`Go to slide ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
+        </div>
+        <span className="absolute left-4 top-4 rounded-full bg-ink/70 px-3 py-1 text-[0.68rem] font-medium text-surface backdrop-blur z-20">
           {meta.mediaRightsStatus}
         </span>
-        <div className="absolute inset-x-5 bottom-5 text-surface">
+        <div className="absolute inset-x-5 bottom-5 text-surface z-20">
           <div className="flex items-center gap-1.5 text-[0.8rem] text-surface/80">
             <MapPin className="h-4 w-4" strokeWidth={1.75} /> {meta.location}
           </div>
@@ -216,6 +282,8 @@ function ContributionPanel({ slug }: { slug: string }) {
   const contract = campaignsContractAddress();
   const { address } = useAccount();
   const { mounted, connected, chainOk, balanceWei, openConnect } = useHabibi();
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const balanceWeiToUse = isDemo ? parseEther("100") : balanceWei;
   const { campaign, refetch } = useCampaign(meta);
   const client = usePublicClient({ chainId: targetChain.id });
   const gate = contributionsEnabled();
@@ -227,8 +295,10 @@ function ContributionPanel({ slug }: { slug: string }) {
   const [step, setStep] = useState<Step>("form");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [gasEstimate, setGasEstimate] = useState<bigint | null>(null);
+  const [demoTxHash, setDemoTxHash] = useState<`0x${string}` | null>(null);
 
   const { writeContractAsync, data: txHash } = useWriteContract();
+  const finalTxHash = process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? demoTxHash : txHash;
   const receipt = useWaitForTransactionReceipt({ hash: txHash, chainId: targetChain.id, confirmations: 1, query: { enabled: !!txHash } });
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -269,9 +339,9 @@ function ContributionPanel({ slug }: { slug: string }) {
     if (campaign.maxPerWalletWei > 0n && campaign.userContributedWei + amountWei > campaign.maxPerWalletWei)
       return `Per-wallet maximum is ${eth(campaign.maxPerWalletWei)}.`;
     if (amountWei > campaign.remainingWei) return `Exceeds remaining capacity (${eth(campaign.remainingWei)}).`;
-    if (amountWei > balanceWei) return "Exceeds your wallet balance.";
+    if (amountWei > balanceWeiToUse) return "Exceeds your wallet balance.";
     return null;
-  }, [campaign, amountWei, isOpen, balanceWei]);
+  }, [campaign, amountWei, isOpen, balanceWeiToUse]);
 
   // Step 1: validate + estimate gas, then open the transaction review modal.
   async function openReview() {
@@ -280,6 +350,11 @@ function ContributionPanel({ slug }: { slug: string }) {
     setError(null);
     setGasEstimate(null);
     setReviewOpen(true);
+    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+    if (isDemo) {
+      setGasEstimate(120000n);
+      return;
+    }
     try {
       const gas = await client.estimateContractGas({
         account: address,
@@ -303,6 +378,29 @@ function ContributionPanel({ slug }: { slug: string }) {
     if (!ack) return setError("Please acknowledge the terms.");
     setBusy(true);
     setError(null);
+    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+    if (isDemo) {
+      try {
+        setStep("submitted");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const mockHash = ("0x" + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")) as `0x${string}`;
+        setDemoTxHash(mockHash);
+
+        // Update localStorage
+        const current = localStorage.getItem(`demo_contrib_${meta.slug}_${address}`);
+        const nextVal = (current ? BigInt(current) : 0n) + amountWei;
+        localStorage.setItem(`demo_contrib_${meta.slug}_${address}`, nextVal.toString());
+
+        setStep("confirmed");
+        setReviewOpen(false);
+        refetch();
+        setBusy(false);
+      } catch {
+        setError("Failed to simulate contribution.");
+        setBusy(false);
+      }
+      return;
+    }
     try {
       let eligibilityData: `0x${string}` = "0x";
       const api = complianceApiUrl();
@@ -328,7 +426,7 @@ function ContributionPanel({ slug }: { slug: string }) {
     }
   }
 
-  const explorer = txHash ? explorerTxUrl(txHash) : null;
+  const explorer = finalTxHash ? explorerTxUrl(finalTxHash) : null;
 
   return (
     <div className="rounded-2xl border border-line bg-surface p-6 shadow-float">
@@ -346,7 +444,7 @@ function ContributionPanel({ slug }: { slug: string }) {
             <Field2 k="ETH contributed" v={eth(amountWei ?? 0n)} />
             <Field2 k="Proposed units" v={units.toString()} />
             {campaign && <Field2 k="Funding now" v={bpsToPercent(campaign.bps)} />}
-            {txHash && <Field2 k="Tx" v={shortAddress(txHash)} mono />}
+            {finalTxHash && <Field2 k="Tx" v={shortAddress(finalTxHash)} mono />}
           </dl>
           {explorer && (
             <a href={explorer} target="_blank" rel="noopener noreferrer" className="focus-lime mt-4 inline-flex items-center gap-1.5 text-[0.85rem] text-ink">
@@ -417,12 +515,16 @@ function ContributionPanel({ slug }: { slug: string }) {
               <p className="mt-1.5 text-[0.72rem] text-muted">{units > 0n ? `${units} proposed participation units` : "—"}</p>
 
               <dl className="mt-4 space-y-1.5 border-t border-line pt-4 text-[0.8rem]">
-                <Field2 k="Your wallet" v={eth(balanceWei)} />
+                <Field2 k="Your wallet" v={eth(balanceWeiToUse)} />
                 {campaign && <Field2 k="Deadline" v={campaign.closingTime > 0n ? new Date(Number(campaign.closingTime) * 1000).toUTCString().slice(5, 16) : "—"} />}
                 <Field2 k="Escrow" v={shortAddress(contract ?? "")} mono />
               </dl>
 
-              {error && <p className="mt-3 text-[0.82rem] text-[#b4442f]" role="alert">{error}</p>}
+              {(validation && amount && amountWei !== 0n) ? (
+                <p className="mt-3 text-[0.82rem] text-[#b4442f]" role="alert">{validation}</p>
+              ) : error ? (
+                <p className="mt-3 text-[0.82rem] text-[#b4442f]" role="alert">{error}</p>
+              ) : null}
 
               <button
                 onClick={openReview}
