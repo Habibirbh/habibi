@@ -159,7 +159,7 @@ export function useCampaign(meta: CampaignMeta | undefined) {
       campaign = {
         meta,
         loaded: true,
-        state: c.state as CampaignState,
+        state: (c.state === CampaignState.Refunding && total === 0n) ? CampaignState.Cancelled : c.state as CampaignState,
         fundingTargetWei: target,
         minThresholdWei: c.minThreshold,
         minContributionWei: c.minContribution,
@@ -290,7 +290,7 @@ export function useUserCampaigns() {
       positions.push({
         meta,
         loaded: true,
-        state: c.state as CampaignState,
+        state: (c.state === CampaignState.Refunding && total === 0n) ? CampaignState.Cancelled : c.state as CampaignState,
         fundingTargetWei: target,
         minThresholdWei: c.minThreshold,
         minContributionWei: c.minContribution,
