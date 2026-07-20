@@ -73,7 +73,7 @@ export function Footer() {
               Designed for fractional UAE real estate.
             </p>
             <a
-              href="https://x.com"
+              href="https://x.com/HabibiRBH?s=20"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Habibi on X"

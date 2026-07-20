@@ -76,7 +76,7 @@ export function Header() {
 
           <div className="flex items-center gap-3 sm:gap-5">
             <a
-              href="https://x.com"
+              href="https://x.com/HabibiRBH?s=20"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Habibi on X"
