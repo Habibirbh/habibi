@@ -57,10 +57,6 @@ export const poolsAbi = habibiPropertyPoolsAbi;
  * Development: the local deployment artifact.
  */
 export function poolsContractAddress(): `0x${string}` | null {
-  if (APP_ENV === "production") {
-    const a = process.env.NEXT_PUBLIC_PROPERTY_CONTRACT_ADDRESS;
-    if (a && a.startsWith("0x") && a.length === 42) return a as `0x${string}`;
-  }
   return habibiPropertyPoolsDeployments[targetChain.id]?.address ?? null;
 }
 

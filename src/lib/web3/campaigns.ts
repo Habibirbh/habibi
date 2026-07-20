@@ -16,7 +16,7 @@ import {
   habibiCampaignsAbi,
   habibiCampaignsDeployments,
 } from "@/lib/contracts/habibiCampaigns";
-import { targetChain, APP_ENV } from "./chains";
+import { targetChain } from "./chains";
 import type { MediaKey } from "@/lib/media";
 
 export const campaignsAbi = habibiCampaignsAbi;
@@ -231,10 +231,6 @@ export function campaignById(id: bigint): CampaignMeta | undefined {
  * from the local artifact. No fallback in production.
  */
 export function campaignsContractAddress(): `0x${string}` | null {
-  if (APP_ENV === "production") {
-    const a = process.env.NEXT_PUBLIC_CAMPAIGNS_CONTRACT_ADDRESS;
-    if (a && a.startsWith("0x") && a.length === 42) return a as `0x${string}`;
-  }
   return habibiCampaignsDeployments[targetChain.id]?.address ?? null;
 }
 
