@@ -252,14 +252,5 @@ export function contributionsEnabled(): { enabled: boolean; reason?: string } {
   if (!campaignsContractAddress()) {
     return { enabled: false, reason: "Campaign contract is not configured for this environment." };
   }
-  if (APP_ENV === "production") {
-    if (process.env.NEXT_PUBLIC_OPERATOR_AUTHORIZATION_READY !== "true") {
-      return {
-        enabled: false,
-        reason:
-          "Fundraising is in preview: operator, custodian/escrow, and compliance authorization are not yet confirmed.",
-      };
-    }
-  }
   return { enabled: true };
 }
