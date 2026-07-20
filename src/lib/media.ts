@@ -36,6 +36,11 @@ export const media = {
     alt: "Modern waterfront residence with a reflecting pool at twilight",
     tone: "#2b3138",
   },
+  elo: {
+    src: "/elo-damac/image (6).jpg",
+    alt: "ELO — DAMAC Hills 2 Apartment",
+    tone: "#2b3138",
+  },
   yas: {
     src: unsplash("1600596542815-ffad4c1539a9"),
     alt: "Low-slung contemporary villa with a landscaped pool terrace",

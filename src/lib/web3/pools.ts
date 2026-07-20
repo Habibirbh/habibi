@@ -25,15 +25,15 @@ export interface PoolMeta {
 export const poolRegistry: PoolMeta[] = [
   {
     poolId: 1n,
-    slug: "marina-residences",
-    name: "Marina Residences",
-    location: "Dubai Marina, Dubai",
+    slug: "elo-damac",
+    name: "ELO — DAMAC Hills 2",
+    location: "DAMAC Hills 2, Dubai",
     emirate: "Dubai",
-    type: "Waterfront residence",
-    image: "marina",
+    type: "Premium park-view apartment · proposed acquisition",
+    image: "elo",
     blurb:
-      "A contemporary waterfront residence framed by the marina — presented with structured documentation, ownership terms, and a clear rental income profile.",
-    valueLabel: "AED 3.8M",
+      "A stylish 1-bedroom apartment in ELO, Damac Hills 2, Dubai. Modern open-plan living area, fitted kitchen, premium amenities including pool and gym.",
+    valueLabel: "AED 639,000",
   },
   {
     poolId: 2n,
