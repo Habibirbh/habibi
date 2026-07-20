@@ -106,7 +106,7 @@ export interface CampaignMeta {
  */
 export const campaignRegistry: CampaignMeta[] = [
   {
-    campaignId: 1n,
+    campaignId: 3n,
     slug: "palmiera-2-oasis",
     name: "Palmiera 2 — The Oasis (Proposed Acquisition)",
     emirate: "Dubai",
