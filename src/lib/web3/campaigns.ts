@@ -233,7 +233,7 @@ export function campaignById(id: bigint): CampaignMeta | undefined {
 export function campaignsContractAddress(): `0x${string}` | null {
   if (APP_ENV === "production") {
     const a = process.env.NEXT_PUBLIC_CAMPAIGNS_CONTRACT_ADDRESS;
-    return a && a.startsWith("0x") && a.length === 42 ? (a as `0x${string}`) : null;
+    if (a && a.startsWith("0x") && a.length === 42) return a as `0x${string}`;
   }
   return habibiCampaignsDeployments[targetChain.id]?.address ?? null;
 }
