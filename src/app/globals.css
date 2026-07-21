@@ -235,8 +235,53 @@ body {
 .pulse-dot {
   animation: pulse-dot 2.4s var(--ease-out-soft) infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  .pulse-dot {
-    animation: none;
+/* ------------------------------------------------------------------ */
+/*  Habibi Intelligence Tokens & Glow Animations                      */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --intelligence-accent: #c8ff18;
+  --intelligence-panel: #0b0c09;
+  --intelligence-surface: #10110f;
+  --intelligence-border: rgba(200, 255, 24, 0.32);
+  --intelligence-glow-soft: rgba(200, 255, 24, 0.16);
+  --intelligence-glow-medium: rgba(200, 255, 24, 0.28);
+  --intelligence-glow-ambient: rgba(200, 255, 24, 0.08);
+}
+
+@keyframes intelligence-breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 
+      0 0 0 1px rgba(200, 255, 24, 0.45),
+      0 0 0 4px rgba(200, 255, 24, 0.14),
+      0 0 18px rgba(200, 255, 24, 0.28),
+      0 0 36px rgba(200, 255, 24, 0.12),
+      0 12px 32px rgba(0, 0, 0, 0.55);
+  }
+  50% {
+    transform: scale(1.025);
+    box-shadow: 
+      0 0 0 1px rgba(200, 255, 24, 0.65),
+      0 0 0 6px rgba(200, 255, 24, 0.22),
+      0 0 24px rgba(200, 255, 24, 0.42),
+      0 0 48px rgba(200, 255, 24, 0.18),
+      0 16px 40px rgba(0, 0, 0, 0.65);
   }
 }
+
+.intelligence-launcher-glow {
+  animation: intelligence-breathe 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intelligence-launcher-glow {
+    animation: none;
+    box-shadow: 
+      0 0 0 1px rgba(200, 255, 24, 0.45),
+      0 0 0 4px rgba(200, 255, 24, 0.14),
+      0 0 18px rgba(200, 255, 24, 0.28),
+      0 12px 32px rgba(0, 0, 0, 0.55);
+  }
+}
+
