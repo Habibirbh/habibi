@@ -103,9 +103,32 @@ export function Hero() {
             </Link>
           </motion.div>
 
+          {/* Contract Address Badge */}
+          <motion.div
+            {...rise(0.45)}
+            className="mt-6 flex flex-col gap-1.5 rounded-2xl border border-line bg-surface/60 p-3.5 max-w-md shadow-xs"
+          >
+            <span className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">
+              Escrow Registry Contract (CA)
+            </span>
+            <div className="flex items-center justify-between gap-3">
+              <code className="font-mono text-[0.78rem] text-ink/95 select-all break-all">
+                0xB20691eEb45c1C00B4c74479a47F18D9311112B4
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText("0xB20691eEb45c1C00B4c74479a47F18D9311112B4");
+                }}
+                className="rounded-full bg-ink px-3 py-1 text-[0.68rem] font-medium text-surface hover:bg-lime hover:text-ink transition-all active:scale-95"
+              >
+                Copy
+              </button>
+            </div>
+          </motion.div>
+
           <motion.ul
             {...rise(0.5)}
-            className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-2 border-t border-line pt-6"
+            className="mt-8 flex flex-wrap items-center gap-x-8 gap-y-2 border-t border-line pt-6"
           >
             {trust.map((t) => (
               <li key={t} className="flex items-center gap-2 text-[0.82rem] text-muted">
