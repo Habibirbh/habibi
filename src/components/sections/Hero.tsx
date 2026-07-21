@@ -109,7 +109,7 @@ export function Hero() {
             className="mt-6 flex flex-col gap-1.5 rounded-2xl border border-line bg-surface/60 p-3.5 max-w-md shadow-xs"
           >
             <span className="text-[0.62rem] uppercase tracking-wider text-muted font-bold">
-              Escrow Registry Contract (CA)
+              CA
             </span>
             <div className="flex items-center justify-between gap-3">
               <code className="font-mono text-[0.78rem] text-ink/95 select-all break-all">
