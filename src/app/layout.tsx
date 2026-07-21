@@ -41,6 +41,9 @@ export const metadata: Metadata = {
   },
 };
 
+import { IntelligenceProvider } from "@/components/intelligence/IntelligenceProvider";
+import { HabibiAssistantDrawer } from "@/components/intelligence/HabibiAssistantDrawer";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -53,7 +56,12 @@ export default function RootLayout({
     >
       <body className="antialiased">
         <SiteProvider>
-          <Web3Provider>{children}</Web3Provider>
+          <Web3Provider>
+            <IntelligenceProvider>
+              {children}
+              <HabibiAssistantDrawer />
+            </IntelligenceProvider>
+          </Web3Provider>
         </SiteProvider>
       </body>
     </html>

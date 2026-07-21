@@ -20,6 +20,7 @@ import {
   campaignStateLabel,
   CampaignState,
 } from "@/lib/web3/campaigns";
+import { PropertyIntelligenceSection } from "@/components/intelligence/PropertyIntelligenceSection";
 import { complianceApiUrl } from "@/lib/web3/config";
 import { fetchEligibilityData, EligibilityError } from "@/lib/web3/eligibility";
 import { targetChain, explorerTxUrl, explorerAddressUrl } from "@/lib/web3/chains";
@@ -257,6 +258,9 @@ export function PropertyDetail({ slug }: { slug: string }) {
 
           {/* onchain activity */}
           {configured && <TxHistory campaignId={meta.campaignId} />}
+
+          {/* Habibi Intelligence Section */}
+          <PropertyIntelligenceSection propertySlug={meta.slug} />
         </div>
 
         {/* RIGHT — contribution panel */}

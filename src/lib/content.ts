@@ -7,6 +7,7 @@ import type { MediaKey } from "./media";
 
 export const nav = [
   { label: "Properties", href: "/#properties" },
+  { label: "Intelligence", href: "/intelligence" },
   { label: "How it works", href: "/#how-it-works" },
   { label: "Ownership", href: "/#ownership" },
   { label: "About", href: "/about" },
