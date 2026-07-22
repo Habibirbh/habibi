@@ -552,7 +552,7 @@ function ContributionPanel({ slug }: { slug: string }) {
             property ownership at this stage.
           </p>
 
-          {ponsConfig.enabled && campaign && (
+          {campaign && (
             <div className="mb-4 flex gap-2 rounded-xl bg-bg2 p-1 border border-line">
               <button
                 type="button"
