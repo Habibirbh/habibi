@@ -285,6 +285,34 @@ export const habibiCampaignsAbi = [
         "internalType": "uint256"
       },
       {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minUnitsOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "eligibilityData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "contribute",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
         "name": "minUnitsOut",
         "type": "uint256",
         "internalType": "uint256"
@@ -321,6 +349,75 @@ export const habibiCampaignsAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "createCampaign",
+    "inputs": [
+      {
+        "name": "fundingTarget",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "minThreshold",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "minContribution",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "maxPerWallet",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "weiPerUnit",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "feeBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "feeRecipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "excessPolicy",
+        "type": "uint8",
+        "internalType": "enum HabibiCampaigns.ExcessPolicy"
+      },
+      {
+        "name": "acceptedAsset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "metadataURI_",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "termsHash_",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -617,6 +714,11 @@ export const habibiCampaignsAbi = [
           },
           {
             "name": "feeRecipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "acceptedAsset",
             "type": "address",
             "internalType": "address"
           },
@@ -2203,6 +2305,17 @@ export const habibiCampaignsAbi = [
         "name": "id",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
       }
     ]
   },

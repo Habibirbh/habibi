@@ -7,6 +7,8 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title  Habibi Campaigns — conditional pre-acquisition crowdfunding & escrow
 /// @notice Habibi does NOT own the target property when a campaign opens. Each
@@ -65,6 +67,7 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         uint16 feeBps; // disclosed platform fee on released amount
         ExcessPolicy excessPolicy;
         address feeRecipient;
+        address acceptedAsset; // 0 = native ETH, otherwise ERC20 token address
         // live accounting
         uint128 totalCommitted; // sum of accepted contributions
         uint128 totalRefunded; // sum of full + excess refunds paid out
@@ -248,6 +251,13 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
     function contribute(uint256 id, uint256 minUnitsOut, bytes calldata eligibilityData)
         external
         payable
+    {
+        contribute(id, msg.value, minUnitsOut, eligibilityData);
+    }
+
+    function contribute(uint256 id, uint256 amount, uint256 minUnitsOut, bytes calldata eligibilityData)
+        public
+        payable
         nonReentrant
         whenNotPaused
     {
@@ -256,28 +266,34 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         if (c.state != State.FundingOpen) revert NotFundingOpen(id, c.state);
         if (c.openingTime != 0 && block.timestamp < c.openingTime) revert NotYetOpen(c.openingTime);
         if (c.closingTime != 0 && block.timestamp > c.closingTime) revert FundingClosed(c.closingTime);
-        if (msg.value == 0) revert ZeroAmount();
-        if (msg.value % c.weiPerUnit != 0) revert NotUnitMultiple(c.weiPerUnit);
-        if (msg.value < c.minContribution) revert BelowMinimum(c.minContribution);
+        if (amount == 0) revert ZeroAmount();
+        if (amount % c.weiPerUnit != 0) revert NotUnitMultiple(c.weiPerUnit);
+        if (amount < c.minContribution) revert BelowMinimum(c.minContribution);
+
+        if (c.acceptedAsset == address(0)) {
+            if (msg.value != amount) revert InvalidConfiguration("amount mismatch");
+        } else {
+            if (msg.value != 0) revert InvalidConfiguration("ETH not accepted");
+            SafeERC20.safeTransferFrom(IERC20(c.acceptedAsset), msg.sender, address(this), amount);
+        }
 
         uint256 already = contributedWei[id][msg.sender];
-        if (c.maxPerWallet != 0 && already + msg.value > c.maxPerWallet) {
+        if (c.maxPerWallet != 0 && already + amount > c.maxPerWallet) {
             revert AboveWalletMaximum(c.maxPerWallet, already);
         }
         uint256 remaining = uint256(c.fundingTarget) - uint256(c.totalCommitted);
-        if (msg.value > remaining) revert ExceedsCapacity(remaining);
+        if (amount > remaining) revert ExceedsCapacity(remaining);
 
-        _checkEligibility(id, already, eligibilityData);
+        _checkEligibility(id, already, amount, eligibilityData);
 
-        uint256 proposedUnits = msg.value / c.weiPerUnit;
+        uint256 proposedUnits = amount / c.weiPerUnit;
         if (proposedUnits < minUnitsOut) revert SlippageUnitsTooLow(proposedUnits, minUnitsOut);
 
-        // effects only — ETH stays in this contract's escrow, no external call
         if (already == 0) c.participantCount += 1;
-        contributedWei[id][msg.sender] = already + msg.value;
-        c.totalCommitted += uint128(msg.value);
+        contributedWei[id][msg.sender] = already + amount;
+        c.totalCommitted += uint128(amount);
 
-        emit ContributionReceived(id, msg.sender, msg.value, proposedUnits, c.totalCommitted, block.timestamp);
+        emit ContributionReceived(id, msg.sender, amount, proposedUnits, c.totalCommitted, block.timestamp);
 
         if (c.totalCommitted == c.fundingTarget) {
             _setState(c, id, State.FundingSuccessful);
@@ -285,7 +301,7 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         }
     }
 
-    function _checkEligibility(uint256 id, uint256 already, bytes calldata data) internal {
+    function _checkEligibility(uint256 id, uint256 already, uint256 amount, bytes calldata data) internal {
         address signer = eligibilitySigner;
         if (signer == address(0)) return;
         if (data.length == 0) revert EligibilityRequired();
@@ -294,7 +310,7 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         if (a.campaignId != id) revert EligibilityInvalid("campaign");
         if (block.timestamp > a.expiry) revert EligibilityInvalid("expired");
         if (eligibilityNonceUsed[msg.sender][a.nonce]) revert EligibilityInvalid("nonce");
-        if (already + msg.value > a.maxContributionWei) revert EligibilityInvalid("amount");
+        if (already + amount > a.maxContributionWei) revert EligibilityInvalid("amount");
         bytes32 digest = _hashTypedDataV4(
             keccak256(
                 abi.encode(
@@ -362,8 +378,12 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         emit RefundClaimed(id, msg.sender, owed);
 
         // interaction
-        (bool ok,) = msg.sender.call{value: owed}("");
-        if (!ok) revert TransferFailed(msg.sender);
+        if (c.acceptedAsset == address(0)) {
+            (bool ok,) = msg.sender.call{value: owed}("");
+            if (!ok) revert TransferFailed(msg.sender);
+        } else {
+            SafeERC20.safeTransfer(IERC20(c.acceptedAsset), msg.sender, owed);
+        }
     }
 
     // -------------------------------------------------------------- acquisition
@@ -444,12 +464,19 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         if (c.totalCommitted > price) emit ExcessRefundEnabled(id, uint256(c.totalCommitted) - price);
 
         // interactions
-        (bool ok1,) = c.acquisitionDestination.call{value: toSeller}("");
-        if (!ok1) revert TransferFailed(c.acquisitionDestination);
-        if (fee > 0) {
-            address fr = c.feeRecipient;
-            (bool ok2,) = fr.call{value: fee}("");
-            if (!ok2) revert TransferFailed(fr);
+        if (c.acceptedAsset == address(0)) {
+            (bool ok1,) = c.acquisitionDestination.call{value: toSeller}("");
+            if (!ok1) revert TransferFailed(c.acquisitionDestination);
+            if (fee > 0) {
+                address fr = c.feeRecipient;
+                (bool ok2,) = fr.call{value: fee}("");
+                if (!ok2) revert TransferFailed(fr);
+            }
+        } else {
+            SafeERC20.safeTransfer(IERC20(c.acceptedAsset), c.acquisitionDestination, toSeller);
+            if (fee > 0) {
+                SafeERC20.safeTransfer(IERC20(c.acceptedAsset), c.feeRecipient, fee);
+            }
         }
     }
 
@@ -493,8 +520,12 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         // interactions
         if (units > 0) _mint(msg.sender, id, units, "");
         if (excess > 0) {
-            (bool ok,) = msg.sender.call{value: excess}("");
-            if (!ok) revert TransferFailed(msg.sender);
+            if (c.acceptedAsset == address(0)) {
+                (bool ok,) = msg.sender.call{value: excess}("");
+                if (!ok) revert TransferFailed(msg.sender);
+            } else {
+                SafeERC20.safeTransfer(IERC20(c.acceptedAsset), msg.sender, excess);
+            }
         }
     }
 
@@ -511,6 +542,34 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         string calldata metadataURI_,
         bytes32 termsHash_
     ) external onlyRole(CAMPAIGN_MANAGER_ROLE) returns (uint256 id) {
+        return createCampaign(
+            fundingTarget,
+            minThreshold,
+            minContribution,
+            maxPerWallet,
+            weiPerUnit,
+            feeBps,
+            feeRecipient,
+            excessPolicy,
+            address(0),
+            metadataURI_,
+            termsHash_
+        );
+    }
+
+    function createCampaign(
+        uint128 fundingTarget,
+        uint128 minThreshold,
+        uint128 minContribution,
+        uint128 maxPerWallet,
+        uint128 weiPerUnit,
+        uint16 feeBps,
+        address feeRecipient,
+        ExcessPolicy excessPolicy,
+        address acceptedAsset,
+        string calldata metadataURI_,
+        bytes32 termsHash_
+    ) public onlyRole(CAMPAIGN_MANAGER_ROLE) returns (uint256 id) {
         if (fundingTarget == 0) revert InvalidConfiguration("fundingTarget");
         if (weiPerUnit == 0 || fundingTarget % weiPerUnit != 0) revert InvalidConfiguration("weiPerUnit");
         if (minContribution == 0 || minContribution % weiPerUnit != 0) revert InvalidConfiguration("minContribution");
@@ -532,6 +591,7 @@ contract HabibiCampaigns is ERC1155, AccessControl, Pausable, ReentrancyGuard, E
         c.feeBps = feeBps;
         c.feeRecipient = feeRecipient;
         c.excessPolicy = excessPolicy;
+        c.acceptedAsset = acceptedAsset;
         c.state = State.Draft;
         metadataURI[id] = metadataURI_;
         termsHash[id] = termsHash_;

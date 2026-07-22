@@ -14,6 +14,7 @@ import {
 } from "./campaigns";
 import { habibiCampaignsDeployments } from "@/lib/contracts/habibiCampaigns";
 import { fundedBps } from "./format";
+import { getPonsConfig } from "./pons";
 
 export interface OnchainCampaign {
   meta: CampaignMeta;
@@ -36,6 +37,7 @@ export interface OnchainCampaign {
   remainingWei: bigint;
   bps: number;
   escrowWei: bigint;
+  acceptedAsset: `0x${string}`;
   /** Connected wallet slice. */
   userContributedWei: bigint;
   userRefundableWei: bigint;
@@ -54,6 +56,7 @@ interface CampaignTuple {
   feeBps: number;
   excessPolicy: number;
   feeRecipient: `0x${string}`;
+  acceptedAsset: `0x${string}`;
   totalCommitted: bigint;
   totalRefunded: bigint;
   releasedAmount: bigint;
@@ -104,6 +107,7 @@ export function useCampaign(meta: CampaignMeta | undefined) {
   let campaign: OnchainCampaign | null = null;
 
   if (meta && isDemo) {
+    const ponsConfig = getPonsConfig();
     const target = parseEther("40");
     const minThreshold = parseEther("24");
     const minContribution = parseEther("0.05");
@@ -143,6 +147,7 @@ export function useCampaign(meta: CampaignMeta | undefined) {
       remainingWei: target - totalCommitted,
       bps: fundedBps(totalCommitted, target),
       escrowWei: totalCommitted,
+      acceptedAsset: (meta.slug === "palmiera-2-oasis" && ponsConfig.enabled && ponsConfig.address) ? ponsConfig.address : "0x0000000000000000000000000000000000000000",
       userContributedWei: userCommitted,
       userRefundableWei: userCommitted, // Always allow simulated refunding of committed amount in demo mode
       userUnits,
@@ -177,6 +182,7 @@ export function useCampaign(meta: CampaignMeta | undefined) {
         remainingWei: target - total,
         bps: fundedBps(total, target),
         escrowWei: total - c.releasedAmount - c.totalRefunded,
+        acceptedAsset: c.acceptedAsset || "0x0000000000000000000000000000000000000000",
         userContributedWei: address ? ((reads.data[1]?.result as bigint | undefined) ?? 0n) : 0n,
         userRefundableWei: address ? ((reads.data[2]?.result as bigint | undefined) ?? 0n) : 0n,
         userUnits: address ? ((reads.data[3]?.result as bigint | undefined) ?? 0n) : 0n,
@@ -240,6 +246,11 @@ export function useUserCampaigns() {
       const totalCommitted = initialCommitted + userCommitted;
       const userUnits = userCommitted / weiPerUnit;
 
+      const ponsConfig = getPonsConfig();
+      const acceptedAsset = (meta.slug === "palmiera-2-oasis" && ponsConfig.enabled && ponsConfig.address)
+        ? ponsConfig.address
+        : "0x0000000000000000000000000000000000000000";
+
       return {
         meta,
         loaded: true,
@@ -261,6 +272,7 @@ export function useUserCampaigns() {
         remainingWei: target - totalCommitted,
         bps: fundedBps(totalCommitted, target),
         escrowWei: totalCommitted,
+        acceptedAsset,
         userContributedWei: userCommitted,
         userRefundableWei: userCommitted, // Always allow simulated refunding of committed amount in demo mode
         userUnits,
@@ -308,6 +320,7 @@ export function useUserCampaigns() {
         remainingWei: target - total,
         bps: fundedBps(total, target),
         escrowWei: total - c.releasedAmount - c.totalRefunded,
+        acceptedAsset: c.acceptedAsset || "0x0000000000000000000000000000000000000000",
         userContributedWei: userContributed,
         userRefundableWei: address ? ((data[i * stride + 2]?.result as bigint | undefined) ?? 0n) : 0n,
         userUnits: address ? ((data[i * stride + 3]?.result as bigint | undefined) ?? 0n) : 0n,

@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { usePublicClient, useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
+import { usePublicClient, useWriteContract, useWaitForTransactionReceipt, useAccount, useReadContract } from "wagmi";
 import { parseEther } from "viem";
 import { AlertTriangle, Check, ArrowRight, ExternalLink, MapPin, ShieldCheck, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { Photo } from "@/components/ui/Photo";
@@ -25,6 +25,7 @@ import { complianceApiUrl } from "@/lib/web3/config";
 import { fetchEligibilityData, EligibilityError } from "@/lib/web3/eligibility";
 import { targetChain, explorerTxUrl, explorerAddressUrl } from "@/lib/web3/chains";
 import { eth, bpsToPercent, shortAddress } from "@/lib/web3/format";
+import { getPonsConfig, ponsTokenAbi } from "@/lib/web3/pons";
 
 const CONDITIONAL_NOTICE =
   "This property has not yet been acquired. Contributions are conditional and remain subject to funding, due diligence, seller availability, acquisition closing, eligibility requirements, and the applicable participation terms.";
@@ -285,13 +286,15 @@ function ContributionPanel({ slug }: { slug: string }) {
   const meta = campaignBySlug(slug);
   const contract = campaignsContractAddress();
   const { address } = useAccount();
-  const { mounted, connected, chainOk, balanceWei, openConnect } = useHabibi();
+  const { mounted, connected, chainOk, balanceWei, openConnect, pons } = useHabibi();
   const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-  const balanceWeiToUse = isDemo ? parseEther("100") : balanceWei;
   const { campaign, refetch } = useCampaign(meta);
   const client = usePublicClient({ chainId: targetChain.id });
   const gate = contributionsEnabled();
+  const ponsConfig = getPonsConfig();
+  console.log("DEBUG PONS CONFIG:", ponsConfig, "campaign:", campaign);
 
+  const [assetType, setAssetType] = useState<"ETH" | "PONS">("ETH");
   const [amount, setAmount] = useState("");
   const [ack, setAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -300,10 +303,36 @@ function ContributionPanel({ slug }: { slug: string }) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [gasEstimate, setGasEstimate] = useState<bigint | null>(null);
   const [demoTxHash, setDemoTxHash] = useState<`0x${string}` | null>(null);
+  const [demoAllowance, setDemoAllowance] = useState(0n);
+
+  const balanceWeiToUse = assetType === "ETH"
+    ? (isDemo ? parseEther("100") : balanceWei)
+    : (isDemo ? parseEther("50000") : pons.balance);
+
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: ponsConfig.address || undefined,
+    abi: ponsTokenAbi,
+    functionName: "allowance",
+    args: address && contract ? [address, contract] : undefined,
+    query: { enabled: !!address && !!contract && !!ponsConfig.address && ponsConfig.enabled && assetType === "PONS", refetchInterval: 5_000 },
+  });
 
   const { writeContractAsync, data: txHash } = useWriteContract();
-  const finalTxHash = process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? demoTxHash : txHash;
+  const { writeContractAsync: approveTokenAsync } = useWriteContract();
+
+  const finalTxHash = isDemo ? demoTxHash : txHash;
   const receipt = useWaitForTransactionReceipt({ hash: txHash, chainId: targetChain.id, confirmations: 1, query: { enabled: !!txHash } });
+
+  // Default asset type based on campaign config
+  useEffect(() => {
+    if (campaign) {
+      if (campaign.acceptedAsset && ponsConfig.address && campaign.acceptedAsset.toLowerCase() === ponsConfig.address.toLowerCase()) {
+        setAssetType("PONS");
+      } else {
+        setAssetType("ETH");
+      }
+    }
+  }, [campaign, ponsConfig.address]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -321,6 +350,12 @@ function ContributionPanel({ slug }: { slug: string }) {
   }, [receipt.data, refetch]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const formatAsset = (val: bigint) => {
+    if (assetType === "ETH") return eth(val);
+    const dec = ponsConfig.decimals;
+    return `${(Number(val) / 10**dec).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${ponsConfig.symbol}`;
+  };
+
   const amountWei = useMemo(() => {
     try {
       return amount ? parseEther(amount) : 0n;
@@ -335,17 +370,54 @@ function ContributionPanel({ slug }: { slug: string }) {
   const critical = campaign ? criticalCampaignConfig(campaign) : { valid: false, reason: "Loading…" };
 
   const validation = useMemo(() => {
-    if (!campaign || amountWei === null) return "Enter a valid ETH amount.";
+    if (!campaign || amountWei === null) return `Enter a valid ${assetType} amount.`;
     if (amountWei === 0n) return null;
     if (!isOpen) return `Funding is ${campaignStateLabel[campaign.state]}.`;
-    if (amountWei % campaign.weiPerUnit !== 0n) return `Must be a multiple of ${eth(campaign.weiPerUnit)}.`;
-    if (amountWei < campaign.minContributionWei) return `Minimum is ${eth(campaign.minContributionWei)}.`;
+    const isCampaignPons = campaign.acceptedAsset.toLowerCase() !== "0x0000000000000000000000000000000000000000";
+    if (assetType === "PONS" && !isCampaignPons) {
+      return `This campaign only accepts ETH contributions onchain.`;
+    }
+    if (assetType === "ETH" && isCampaignPons) {
+      return `This campaign only accepts ${ponsConfig.symbol} contributions onchain.`;
+    }
+    if (amountWei % campaign.weiPerUnit !== 0n) return `Must be a multiple of ${formatAsset(campaign.weiPerUnit)}.`;
+    if (amountWei < campaign.minContributionWei) return `Minimum is ${formatAsset(campaign.minContributionWei)}.`;
     if (campaign.maxPerWalletWei > 0n && campaign.userContributedWei + amountWei > campaign.maxPerWalletWei)
-      return `Per-wallet maximum is ${eth(campaign.maxPerWalletWei)}.`;
-    if (amountWei > campaign.remainingWei) return `Exceeds remaining capacity (${eth(campaign.remainingWei)}).`;
+      return `Per-wallet maximum is ${formatAsset(campaign.maxPerWalletWei)}.`;
+    if (amountWei > campaign.remainingWei) return `Exceeds remaining capacity (${formatAsset(campaign.remainingWei)}).`;
     if (amountWei > balanceWeiToUse) return "Exceeds your wallet balance.";
+    if (assetType === "PONS" && !pons.valid) return `PONS configuration is invalid: ${pons.reason || "unknown error"}`;
     return null;
-  }, [campaign, amountWei, isOpen, balanceWeiToUse]);
+  }, [campaign, amountWei, isOpen, balanceWeiToUse, assetType, pons.valid, pons.reason, ponsConfig.symbol]);
+
+  const currentAllowance = isDemo ? demoAllowance : (allowance ?? 0n);
+  const needsApproval = assetType === "PONS" && amountWei !== null && currentAllowance < amountWei;
+
+  async function handleApprove() {
+    if (!ponsConfig.address || !contract || !amountWei) return;
+    setBusy(true);
+    setError(null);
+    if (isDemo) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      setDemoAllowance(1000000000000000000000000n);
+      setBusy(false);
+      return;
+    }
+    try {
+      const tx = await approveTokenAsync({
+        address: ponsConfig.address,
+        abi: ponsTokenAbi,
+        functionName: "approve",
+        args: [contract, amountWei],
+      });
+      await client?.waitForTransactionReceipt({ hash: tx });
+      refetchAllowance();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Approval failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Step 1: validate + estimate gas, then open the transaction review modal.
   async function openReview() {
@@ -354,7 +426,6 @@ function ContributionPanel({ slug }: { slug: string }) {
     setError(null);
     setGasEstimate(null);
     setReviewOpen(true);
-    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
     if (isDemo) {
       setGasEstimate(120000n);
       return;
@@ -365,8 +436,10 @@ function ContributionPanel({ slug }: { slug: string }) {
         address: contract,
         abi: campaignsAbi,
         functionName: "contribute",
-        args: [meta.campaignId, units, "0x"],
-        value: amountWei,
+        args: assetType === "ETH"
+          ? [meta.campaignId, units, "0x"]
+          : [meta.campaignId, amountWei, units, "0x"],
+        value: assetType === "ETH" ? amountWei : 0n,
       });
       setGasEstimate(gas);
     } catch {
@@ -382,7 +455,6 @@ function ContributionPanel({ slug }: { slug: string }) {
     if (!ack) return setError("Please acknowledge the terms.");
     setBusy(true);
     setError(null);
-    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
     if (isDemo) {
       try {
         setStep("submitted");
@@ -414,8 +486,10 @@ function ContributionPanel({ slug }: { slug: string }) {
         address: contract,
         abi: campaignsAbi,
         functionName: "contribute",
-        args: [meta.campaignId, units, eligibilityData],
-        value: amountWei,
+        args: assetType === "ETH"
+          ? [meta.campaignId, units, eligibilityData]
+          : [meta.campaignId, amountWei, units, eligibilityData],
+        value: assetType === "ETH" ? amountWei : 0n,
       });
       await writeContractAsync(request);
       setStep("submitted");
@@ -424,7 +498,7 @@ function ContributionPanel({ slug }: { slug: string }) {
       if (e instanceof EligibilityError) setError(msg);
       else if (/User rejected|denied/i.test(msg)) setError("Transaction rejected in wallet.");
       else if (/ExceedsCapacity/.test(msg)) setError("Filled while submitting — try a smaller amount.");
-      else if (/insufficient funds/i.test(msg)) setError("Insufficient ETH for amount plus gas.");
+      else if (/insufficient funds/i.test(msg)) setError(`Insufficient ${assetType} for amount plus gas.`);
       else setError(msg.split("\n")[0].slice(0, 160));
       setBusy(false);
     }
@@ -445,7 +519,7 @@ function ContributionPanel({ slug }: { slug: string }) {
             acquisition conditions.
           </p>
           <dl className="mx-auto mt-4 max-w-xs space-y-1.5 rounded-xl border border-line bg-bg2/40 p-4 text-left text-[0.82rem]">
-            <Field2 k="ETH contributed" v={eth(amountWei ?? 0n)} />
+            <Field2 k={`${assetType} contributed`} v={formatAsset(amountWei ?? 0n)} />
             <Field2 k="Proposed units" v={units.toString()} />
             {campaign && <Field2 k="Funding now" v={bpsToPercent(campaign.bps)} />}
             {finalTxHash && <Field2 k="Tx" v={shortAddress(finalTxHash)} mono />}
@@ -473,10 +547,38 @@ function ContributionPanel({ slug }: { slug: string }) {
       ) : (
         <>
           <h3 className="font-serif text-xl text-ink">Contribute</h3>
-          <p className="mt-1 text-[0.82rem] text-muted">
+          <p className="mt-1 text-[0.82rem] text-muted mb-4">
             You are making a conditional contribution toward a proposed acquisition. You do not receive completed
             property ownership at this stage.
           </p>
+
+          {ponsConfig.enabled && campaign && (
+            <div className="mb-4 flex gap-2 rounded-xl bg-bg2 p-1 border border-line">
+              <button
+                type="button"
+                onClick={() => setAssetType("ETH")}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  assetType === "ETH"
+                    ? "bg-surface text-ink shadow-sm font-semibold"
+                    : "text-muted hover:text-ink disabled:opacity-30"
+                }`}
+              >
+                ETH
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssetType("PONS")}
+                disabled={!ponsConfig.address}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  assetType === "PONS"
+                    ? "bg-surface text-ink shadow-sm font-semibold"
+                    : "text-muted hover:text-ink disabled:opacity-30"
+                }`}
+              >
+                {ponsConfig.symbol}
+              </button>
+            </div>
+          )}
 
           {!gate.enabled ? (
             <div className="mt-5 flex items-start gap-2 rounded-xl border border-line bg-bg2/50 p-4 text-[0.85rem] text-muted">
@@ -499,7 +601,7 @@ function ContributionPanel({ slug }: { slug: string }) {
           ) : (
             <>
               <label htmlFor="contrib" className="mt-5 block text-[0.8rem] text-muted">
-                Amount {campaign ? `(multiples of ${eth(campaign.weiPerUnit)})` : ""}
+                Amount {campaign ? `(multiples of ${formatAsset(campaign.weiPerUnit)})` : ""}
               </label>
               <div className="mt-2 flex items-center rounded-xl border border-line-strong bg-white px-4 focus-within:border-ink/40">
                 <input
@@ -514,12 +616,12 @@ function ContributionPanel({ slug }: { slug: string }) {
                   placeholder="0.05"
                   className="w-full bg-transparent py-3 text-lg text-ink outline-none placeholder:text-muted/40"
                 />
-                <span className="pl-2 text-sm text-muted">ETH</span>
+                <span className="pl-2 text-sm text-muted">{assetType}</span>
               </div>
               <p className="mt-1.5 text-[0.72rem] text-muted">{units > 0n ? `${units} proposed participation units` : "—"}</p>
 
               <dl className="mt-4 space-y-1.5 border-t border-line pt-4 text-[0.8rem]">
-                <Field2 k="Your wallet" v={eth(balanceWeiToUse)} />
+                <Field2 k="Your wallet" v={formatAsset(balanceWeiToUse)} />
                 {campaign && <Field2 k="Deadline" v={campaign.closingTime > 0n ? new Date(Number(campaign.closingTime) * 1000).toUTCString().slice(5, 16) : "—"} />}
                 <Field2 k="Escrow" v={shortAddress(contract ?? "")} mono />
               </dl>
@@ -530,14 +632,25 @@ function ContributionPanel({ slug }: { slug: string }) {
                 <p className="mt-3 text-[0.82rem] text-[#b4442f]" role="alert">{error}</p>
               ) : null}
 
-              <button
-                onClick={openReview}
-                disabled={!amountWei || amountWei === 0n || !!validation}
-                className="focus-lime mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3.5 text-sm font-medium text-surface transition-colors hover:bg-lime hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Contribute to campaign
-                <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </button>
+              {needsApproval ? (
+                <button
+                  onClick={handleApprove}
+                  disabled={busy || !amountWei || amountWei === 0n || !!validation}
+                  className="focus-lime mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3.5 text-sm font-medium text-surface transition-colors hover:bg-lime hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {busy ? "Approving..." : `Approve ${ponsConfig.symbol}`}
+                  <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                </button>
+              ) : (
+                <button
+                  onClick={openReview}
+                  disabled={busy || !amountWei || amountWei === 0n || !!validation}
+                  className="focus-lime mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3.5 text-sm font-medium text-surface transition-colors hover:bg-lime hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Contribute to campaign
+                  <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                </button>
+              )}
               <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[0.68rem] text-muted">
                 <ShieldCheck className="h-3.5 w-3.5 text-lime" /> Funds held in escrow · refundable under stated conditions
               </p>
@@ -554,11 +667,11 @@ function ContributionPanel({ slug }: { slug: string }) {
             <p className="mt-1 text-[0.8rem] text-surface/55">Confirm the details before signing in your wallet.</p>
             <dl className="mt-5 space-y-2 text-[0.85rem]">
               <RField k="Campaign" v={meta.name} />
-              <RField k="Contribution" v={eth(amountWei ?? 0n)} />
+              <RField k="Contribution" v={formatAsset(amountWei ?? 0n)} />
               <RField k="Proposed units" v={units.toString()} />
               <RField k="Escrow" v={shortAddress(contract ?? "")} mono />
               <RField k="Deadline" v={campaign.closingTime > 0n ? new Date(Number(campaign.closingTime) * 1000).toUTCString().slice(5, 22) + " UTC" : "—"} />
-              <RField k="Remaining capacity" v={eth(campaign.remainingWei)} />
+              <RField k="Remaining capacity" v={formatAsset(campaign.remainingWei)} />
               <RField k="Estimated gas" v={gasEstimate !== null ? `${gasEstimate.toString()} units` : "estimating…"} />
             </dl>
             <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[0.76rem] leading-relaxed text-surface/60">
@@ -579,8 +692,8 @@ function ContributionPanel({ slug }: { slug: string }) {
               <button onClick={() => !busy && setReviewOpen(false)} disabled={busy} className="focus-lime flex-1 rounded-xl border border-white/15 py-3 text-sm font-medium text-surface hover:bg-white/5 disabled:opacity-50">
                 Cancel
               </button>
-              <button onClick={confirm} disabled={busy || !ack} className="focus-lime flex-[1.4] rounded-xl bg-lime py-3 text-sm font-medium text-ink transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50">
-                {busy ? "Confirm in wallet…" : "Confirm & sign"}
+              <button onClick={confirm} disabled={busy || !ack} className="focus-lime flex-1 rounded-xl bg-lime py-3 text-sm font-semibold text-ink hover:bg-[#b5e612] disabled:opacity-50 disabled:cursor-not-allowed">
+                {busy ? "Signing…" : "Confirm"}
               </button>
             </div>
           </div>

@@ -116,6 +116,22 @@ if (/^(1|true|on)$/i.test(process.env.NEXT_PUBLIC_DEMO_MODE || "")) {
   problems.push("NEXT_PUBLIC_DEMO_MODE must not be enabled in production");
 }
 
+// $PONS token configuration validations for production
+if (process.env.NEXT_PUBLIC_PONS_ENABLED === "true") {
+  require_("NEXT_PUBLIC_PONS_TOKEN_ADDRESS", isNonZeroAddress);
+  if (process.env.NEXT_PUBLIC_PONS_TOKEN_ADDRESS && ANVIL_ADDRESSES.has(process.env.NEXT_PUBLIC_PONS_TOKEN_ADDRESS.toLowerCase())) {
+    problems.push("NEXT_PUBLIC_PONS_TOKEN_ADDRESS is a local anvil deployment address, not a mainnet deployment");
+  }
+  if (process.env.NEXT_PUBLIC_PONS_TOKEN_SYMBOL !== "PONS") {
+    problems.push(`NEXT_PUBLIC_PONS_TOKEN_SYMBOL must be "PONS"; got "${process.env.NEXT_PUBLIC_PONS_TOKEN_SYMBOL}"`);
+  }
+  require_("NEXT_PUBLIC_PONS_TOKEN_DECIMALS", (v) => v === "18");
+  require_("NEXT_PUBLIC_PONS_EXPLORER_URL", isUrl);
+  
+  require_("PONS_PRICE_ADAPTER_ADDRESS", isNonZeroAddress);
+  require_("PONS_QUOTE_SIGNER_ADDRESS", isNonZeroAddress);
+}
+
 if (problems.length) {
   console.error("[check-env] PRODUCTION BUILD REFUSED:\n  - " + problems.join("\n  - "));
   console.error(

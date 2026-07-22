@@ -12,6 +12,8 @@ import { campaignsAbi, campaignsContractAddress, CampaignState, campaignStateLab
 import { targetChain, explorerTxUrl } from "@/lib/web3/chains";
 import { eth, bpsToPercent, shortAddress } from "@/lib/web3/format";
 
+import { getPonsConfig } from "@/lib/web3/pons";
+
 /**
  * Portfolio derived entirely from onchain campaign state (spec §6/§7). Three
  * distinct position types — Conditional commitment / Acquired interest /
@@ -44,15 +46,46 @@ export function CampaignPortfolio() {
   }
 
   const mine = positions.filter((p) => p.userContributedWei > 0n);
-  const totalContributed = mine.reduce((s, p) => s + p.userContributedWei, 0n);
-  const totalRefundable = mine.reduce((s, p) => s + p.userRefundableWei, 0n);
+  const ponsConfig = getPonsConfig();
+
+  let totalEthContributed = 0n;
+  let totalPonsContributed = 0n;
+  let totalEthRefundable = 0n;
+  let totalPonsRefundable = 0n;
+
+  mine.forEach((p) => {
+    const isPons = ponsConfig.enabled && ponsConfig.address && p.acceptedAsset?.toLowerCase() === ponsConfig.address.toLowerCase();
+    if (isPons) {
+      totalPonsContributed += p.userContributedWei;
+      totalPonsRefundable += p.userRefundableWei;
+    } else {
+      totalEthContributed += p.userContributedWei;
+      totalEthRefundable += p.userRefundableWei;
+    }
+  });
+
   const totalUnits = mine.reduce((s, p) => s + p.userUnits, 0n);
 
+  const formatPonsAmount = (val: bigint) => {
+    const dec = ponsConfig.decimals;
+    return `${(Number(val) / 10**dec).toLocaleString(undefined, { minimumFractionDigits: 2 })} ${ponsConfig.symbol}`;
+  };
+
+  const contribStr = [
+    totalEthContributed > 0n || totalPonsContributed === 0n ? eth(totalEthContributed) : null,
+    totalPonsContributed > 0n ? formatPonsAmount(totalPonsContributed) : null
+  ].filter(Boolean).join(" + ");
+
+  const refundStr = [
+    totalEthRefundable > 0n || totalPonsRefundable === 0n ? eth(totalEthRefundable) : null,
+    totalPonsRefundable > 0n ? formatPonsAmount(totalPonsRefundable) : null
+  ].filter(Boolean).join(" + ");
+
   const summary = [
-    { icon: Coins, label: "Total contributed", value: eth(totalContributed) },
+    { icon: Coins, label: "Total contributed", value: contribStr },
     { icon: Building2, label: "Active positions", value: String(mine.length) },
     { icon: PieChart, label: "Participation units", value: totalUnits.toString() },
-    { icon: RefreshCw, label: "Refundable", value: eth(totalRefundable) },
+    { icon: RefreshCw, label: "Refundable", value: refundStr },
   ];
 
   return (
@@ -69,7 +102,7 @@ export function CampaignPortfolio() {
           <LogOut className="h-3.5 w-3.5" /> Disconnect
         </button>
       </div>
-
+ 
       {!chainOk && (
         <p className="mt-6 flex items-start gap-2 rounded-xl border border-line bg-surface p-4 text-[0.88rem] text-ink/80">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#b07a1a]" />
@@ -77,12 +110,12 @@ export function CampaignPortfolio() {
         </p>
       )}
       {!configured && <p className="mt-6 rounded-xl border border-line bg-surface p-4 text-[0.88rem] text-muted">Campaign contract not configured for this environment.</p>}
-
+ 
       <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {summary.map((s) => (
           <div key={s.label} className="rounded-2xl border border-line bg-surface p-5 shadow-card">
             <s.icon className="h-5 w-5 text-ink/70" strokeWidth={1.6} />
-            <p className="mt-4 truncate font-serif text-2xl leading-none text-ink">{s.value}</p>
+            <p className="mt-4 font-serif text-[1.3rem] leading-tight text-ink break-words">{s.value}</p>
             <p className="mt-1.5 text-[0.75rem] text-muted">{s.label}</p>
           </div>
         ))}
@@ -132,6 +165,16 @@ function PositionCard({ p, chainOk, refetch }: { p: OnchainCampaign; chainOk: bo
   const pt = positionType(p.state);
   const proposedUnits = p.weiPerUnit > 0n ? p.userContributedWei / p.weiPerUnit : 0n;
   const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const ponsConfig = getPonsConfig();
+
+  const formatAsset = (val: bigint) => {
+    if (!ponsConfig.enabled || !ponsConfig.address || p.acceptedAsset?.toLowerCase() !== ponsConfig.address.toLowerCase()) {
+      return eth(val);
+    }
+    const dec = ponsConfig.decimals;
+    return `${(Number(val) / 10**dec).toLocaleString(undefined, { minimumFractionDigits: 2 })} ${ponsConfig.symbol}`;
+  };
+
   const canRefund = isDemo ? p.userRefundableWei > 0n : (p.state === CampaignState.Refunding && p.userRefundableWei > 0n);
   const canClaimUnits = (p.state === CampaignState.Acquired || p.state === CampaignState.InterestsIssued) && !p.userFinalClaimed && p.userContributedWei > 0n;
   const done = !!resultHash;
@@ -188,7 +231,7 @@ function PositionCard({ p, chainOk, refetch }: { p: OnchainCampaign; chainOk: bo
           </div>
           <p className="mt-0.5 text-[0.78rem] text-muted">{p.meta.location} · {campaignStateLabel[p.state]}</p>
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[0.82rem]">
-            <span className="text-muted">Contributed <span className="font-medium text-ink">{eth(p.userContributedWei)}</span></span>
+            <span className="text-muted">Contributed <span className="font-medium text-ink">{formatAsset(p.userContributedWei)}</span></span>
             <span className="text-muted">Proposed units <span className="font-medium text-ink">{proposedUnits.toString()}</span></span>
             {p.userUnits > 0n && <span className="text-muted">Final units <span className="font-medium text-ink">{p.userUnits.toString()}</span></span>}
             {p.closingTime > 0n && <span className="text-muted">Deadline <span className="font-medium text-ink">{new Date(Number(p.closingTime) * 1000).toUTCString().slice(5, 16)}</span></span>}
@@ -199,7 +242,7 @@ function PositionCard({ p, chainOk, refetch }: { p: OnchainCampaign; chainOk: bo
       <div className="mt-3 border-t border-line pt-3">
         <div className="flex items-center justify-between text-[0.74rem] text-muted">
           <span>Campaign {bpsToPercent(p.bps)} funded</span>
-          <span>{eth(p.totalCommittedWei)} / {eth(p.fundingTargetWei)}</span>
+          <span>{formatAsset(p.totalCommittedWei)} / {formatAsset(p.fundingTargetWei)}</span>
         </div>
         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/[0.08]">
           <div className="h-full rounded-full bg-lime" style={{ width: `${p.bps / 100}%` }} />
@@ -210,7 +253,7 @@ function PositionCard({ p, chainOk, refetch }: { p: OnchainCampaign; chainOk: bo
         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line pt-3">
           {canRefund && (
             <button onClick={() => act("claimRefund", "refund")} disabled={!chainOk || busy !== null} className="focus-lime inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[0.8rem] font-medium text-surface transition-colors hover:bg-lime hover:text-ink disabled:opacity-50">
-              <RefreshCw className="h-3.5 w-3.5" /> {busy === "refund" ? "Confirming…" : `Claim refund · ${eth(p.userRefundableWei)}`}
+              <RefreshCw className="h-3.5 w-3.5" /> {busy === "refund" ? "Confirming…" : `Claim refund · ${formatAsset(p.userRefundableWei)}`}
             </button>
           )}
           {canClaimUnits && (

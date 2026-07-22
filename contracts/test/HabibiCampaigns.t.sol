@@ -312,4 +312,44 @@ contract HabibiCampaignsTest is Test {
         assertEq(address(c).balance, uint256(cam.totalCommitted) - cam.releasedAmount - cam.totalRefunded);
         assertLe(cam.totalCommitted, TARGET);
     }
+
+    function test_ERC20PONSContribution() public {
+        ERC20Mock pons = new ERC20Mock();
+        
+        vm.startPrank(admin);
+        uint256 id = c.createCampaign(
+            TARGET,
+            THRESHOLD,
+            MINC,
+            0,
+            UNIT,
+            0,
+            address(0),
+            HabibiCampaigns.ExcessPolicy.ProportionalRefund,
+            address(pons),
+            "ipfs://pons-metadata",
+            keccak256("pons-terms")
+        );
+        c.scheduleCampaign(id, uint64(block.timestamp), uint64(block.timestamp + 7 days));
+        c.openCampaign(id);
+        vm.stopPrank();
+
+        pons.transfer(alice, 10 ether);
+        
+        vm.startPrank(alice);
+        pons.approve(address(c), 5 ether);
+        
+        c.contribute(id, 5 ether, 0, "");
+        vm.stopPrank();
+
+        assertEq(c.contributedWei(id, alice), 5 ether);
+        assertEq(pons.balanceOf(address(c)), 5 ether);
+    }
+}
+
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+contract ERC20Mock is ERC20 {
+    constructor() ERC20("PONS Token", "PONS") {
+        _mint(msg.sender, 1000000 ether);
+    }
 }
