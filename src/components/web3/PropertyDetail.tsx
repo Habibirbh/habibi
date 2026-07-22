@@ -292,7 +292,6 @@ function ContributionPanel({ slug }: { slug: string }) {
   const client = usePublicClient({ chainId: targetChain.id });
   const gate = contributionsEnabled();
   const ponsConfig = getPonsConfig();
-  console.log("DEBUG PONS CONFIG:", ponsConfig, "campaign:", campaign);
 
   const [assetType, setAssetType] = useState<"ETH" | "PONS">("ETH");
   const [amount, setAmount] = useState("");
@@ -552,33 +551,30 @@ function ContributionPanel({ slug }: { slug: string }) {
             property ownership at this stage.
           </p>
 
-          {campaign && (
-            <div className="mb-4 flex gap-2 rounded-xl bg-bg2 p-1 border border-line">
-              <button
-                type="button"
-                onClick={() => setAssetType("ETH")}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  assetType === "ETH"
-                    ? "bg-surface text-ink shadow-sm font-semibold"
-                    : "text-muted hover:text-ink disabled:opacity-30"
-                }`}
-              >
-                ETH
-              </button>
-              <button
-                type="button"
-                onClick={() => setAssetType("PONS")}
-                disabled={!ponsConfig.address}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  assetType === "PONS"
-                    ? "bg-surface text-ink shadow-sm font-semibold"
-                    : "text-muted hover:text-ink disabled:opacity-30"
-                }`}
-              >
-                {ponsConfig.symbol}
-              </button>
-            </div>
-          )}
+          <div className="mb-4 flex gap-2 rounded-xl bg-bg2 p-1 border border-line">
+            <button
+              type="button"
+              onClick={() => setAssetType("ETH")}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                assetType === "ETH"
+                  ? "bg-surface text-ink shadow-sm font-semibold"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              ETH
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssetType("PONS")}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                assetType === "PONS"
+                  ? "bg-surface text-ink shadow-sm font-semibold"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              {ponsConfig.symbol}
+            </button>
+          </div>
 
           {!gate.enabled ? (
             <div className="mt-5 flex items-start gap-2 rounded-xl border border-line bg-bg2/50 p-4 text-[0.85rem] text-muted">
